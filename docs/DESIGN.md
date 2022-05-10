@@ -171,6 +171,10 @@ if in future the server is enhanced to support (m)TLS connection forwarding betw
 
 #### timeouts
 
+TODO
+- set hard max time limit on each forwarded client connection?
+- TCP keepalive?
+
 #### client rate limiting
 
 Since the load balancer is application protocol agnostic, rate limiting will apply at the level of simultaneous client connections to the server.
