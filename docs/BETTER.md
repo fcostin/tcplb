@@ -64,7 +64,10 @@ see rfc5280.
 At a minimum, a server must support reading the following kinds of SANs out of the client's x509 cert to define `Ids(c)`:
 -   email addresses
 -   DNS names
-A server may choose to implement support additional kinds of SANs defined in [rfc5280](https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.6). 
+A server may choose to implement support additional kinds of SANs defined in [rfc5280](https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.6).
+
+Server implementations are encouraged to consider normalisation of SAN data when implementing
+authoration component.
 
 A single x509 client certificate for an authenticated client may bind 0, 1 or many SANs to the
 client's public key. The set of upstreams that a client is authorised to be forwarded to is
