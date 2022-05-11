@@ -25,7 +25,9 @@ Logical network cartoon illustrating a minimal deployment:
 
 - performance
 - completeness
-- compatibility with deployment environments where clients cannot be configured for mTLS as per design -- we assume custom client certs can be issued per authentication design & that modern TLS protocol & cipher suites are supported
+- compatibility with deployment environments where clients cannot be configured
+  for mTLS as per design -- we assume custom client certs can be issued per 
+  authentication design & that modern TLS protocol & cipher suites are supported
 - server configurability without recompiling application code
 
 ### Scope
@@ -33,49 +35,193 @@ Logical network cartoon illustrating a minimal deployment:
 Library scope
 
 1. Primitives for connection forwarding, including:
-   1. a least-connections forwarding policy, that tracks the number of connections per upstream.
+   1. a least-connections forwarding policy, that tracks the number of
+      connections per upstream.
    2. a health-checking forwarding policy, that removes unhealthy upstreams
-2. A per-client connection rate limiter that tracks the number of client connections
+2. A per-client connection rate limiter that tracks the number of client
+   connections
 
 Server scope
 
-1. mTLS support between the client and the upstream, to support encryption, integrity and mutual authentication 
-2. an authorization scheme defining what upstreams are available to which clients
-3. ability to accept and forward decrypted connections to upstreams using library
+1. mTLS support between the client and the upstream, to support encryption,
+   integrity and mutual authentication 
+2. an authorization scheme defining what upstreams are available to each client
+3. accept and forward decrypted connections to upstreams using library
 
 
 ### Proposed API (server)
 
 "alpha" scope:
 
-server listens on a configured interface & TCP address for incoming TCP connections from clients. it attempts to negotiate mTLS connections & then reverse proxy application layer connections from client to an upstream that the client is authorised to access. That's the API.
+Server listens on a configured interface & TCP address for incoming connections
+from clients. It attempts to negotiate mTLS connections & then reverse proxy
+the application layer connections from client to an upstream that the client is
+authorised to access. That's the API.
 
 "future" scope:
-- server supports being put into "drain" mode, either by SIGINT or by call to admin API (TBC)
-- server supports reloading configuration without disrupting in-flight forwarded connections, either by SIGHUP or by call to admin API (TBC)
+- server supports being put into "drain" mode, either by SIGINT or by call to
+  admin API (TBC)
+- server supports reloading configuration without disrupting in-flight forwarded
+  connections, either by SIGHUP or by call to admin API (TBC)
 
 ### Security considerations
 
 ### CLI UX
 
 "alpha" scope:
-- some server configuration may be hardcoded & require editing source and recompilation to vary
+- some server configuration may be hardcoded & require editing source and
+  recompilation to vary
 
 "beta" scope:
-- support being configured in natural way if being run as service in k8s (environment variables, config files, maybe flags)
-- support basic CLI usability for operators fiddling manually on command line (flags, env vars, config files)
+- support being configured in natural way if being run as service in k8s
+  (environment variables, config files, maybe flags)
+- support basic CLI usability for humans fiddling manually on command line
+  (flags, env vars, config files)
 
 ### Key details
 
+#### forwarding connections
+
+The load balancer server will accept and terminate TLS connections from the
+client, and forward the decrypted application-layer protocol to an upstream
+over a TCP connection. The load balancer design assumes that the clients and
+upstreams have agreed on some particular application-layer protocol, but the
+load balancer does not know what that application protocol is. This has some
+consequences for the load balancer server design:
+
+- We might wish to attempt to reuse an established TCP connection between
+  the load balancer and an upstream to forward multiple application-layer
+  "requests" from one or more clients, in an effort to reduce latency from
+  the overhead of reestablishing TCP connections. However, since the load
+  balancer doesn't know how (or if) the application protocol denotes request
+  boundaries, and TCP doesn't offer a way to encode request boundaries, we
+  cannot do that. This means that the load balancer cannot attempt to reuse
+  TCP connections to upstreams across multiple "requests", so instead each TCP 
+  connection to an upstream will be used at most once to forward a single client
+  connection, and then closed. This may increase latency due to additional
+  roundtrips to establish new TCP connections compared to a more specialised
+  application-protocol aware design, but has the advantages of being simpler
+  (less chance of being defective) and less effort to implement.
+- Arguably, clients and upstreams might agree to use a custom application
+  protocol that involves waiting for arbitrarily long periods of time between
+  sending any bytes. However, one downside of supporting such a protocol is
+  that it increases the chance that resources are wasted supporting idle
+  connections caused by failures in clients, upstreams, networks, etc. The 
+  load balancer will enforce an application-protocol level idle timeout,
+  defaulting arbitrarily to 300 seconds, after which it will close both the
+  TLS connection to the client and the TCP connection to the upstream.
+- The load balancer may attempt to use TCP-level keepalives
+
+tradeoff: the server will make no attempt to maintain a pool of upstream connections that can be reused across multiple client connections. the server will make no attempt to maintain a queue of warm upstream connections. this has the consequence the connection forwarding logic simpler, but will increase the latency for client communications to reach upstreams and upstream responses to reach clients.
+
+it is likely that this could be improved in future releases without needing to rework the rest of the design.
+
+if in future the server is enhanced to support (m)TLS connection forwarding between the server and upstreams, then the latency impact of failing to maintain a pool of pre-negotiated "warm" TLS connections will be even more severe due to the additional roundtrips required for a TLS handshake.
+
+#### even more detail about forwarding connections
+
+sketch of reliable message forwarding from a source conn (src) to a destination
+conn (dst)
+
+```
+var result err = nil
+
+for {
+    deadline := time.Now() + IDLE_TIMEOUT
+    _ = src.SetReadDeadline(deadline)
+    _ = dst.SetWriteDeadline(deadline)
+    n_copied, err := attempt to copy up to COPY_LIMIT bytes from src to dst
+
+    switch err {
+    case nil:
+        continue // making progress. keep going.
+    case io.EOF:
+        ensureShutdownWrite(dst) // Success! communicate EOF to our peer
+        break
+    case errors.Is(err, os.ErrDeadlineExceeded):
+        if n_copied == 0 {
+            // No bytes were copied before IDLE_TIMEOUT deadline.
+            // It is likely that progress is no longer being made.
+            // Terminate forwarding to conserve resources.
+            // TODO FIXME what if no bytes were copied src -> dst but
+            // plenty are getting copied dst <- src? we shouldn't just terminate!!
+            ensureConnClosed(src)
+            ensureConnClosed(dst)
+            result = err
+            break
+        } else {
+            continue // making progress. keep going.
+        }
+    default:
+        // Some error occurred during copy, either while reading
+        // from src or writing to dst. Terminate forwarding.
+        ensureConnClosed(src)
+        ensureConnClosed(dst)
+        result = err
+        break
+    }
+}
+```
+
+reason for completion               interpretation      action
+---------------------               --------------      ------
+buffer of data data copied, no EOF  okay                reset deadline, iterate
+src conn EOF                        done                ensure writing to the dst conn is shutdown, break with success
+dst read error                      failure             ensure both conns shutdown, break with error
+src write error                     failure             ensure both conns shutdown, break with error
+deadline exceeded, no bytes copied  failure             ensure both conns shutdown, break with error
+deadline exceeded, 1+ bytes copied  okay                reset deadline, iterate
+
+
+ensuring writing is shutdown on the dst conn (aka shutdown SHUT_WR)
+is intended to
+1.  send all queued messages to the client
+2.  inform the client that no more messages will be coming
+
+If dst conn is a TCP conn, we inform client of EOF by sending TCP FIN
+If dst conn is a TLS conn, we inform client of EOF by sending TLS alert close_notify
+
+
+n.b.  on error, it might be better to ensure the error-ing conn is closed and
+ensure the other one (if it is non-error-ing) is write-shutdown
+
+
+ref: https://www.ietf.org/rfc/rfc793.txt
+
+> 3.5.  Closing a Connection
+>
+>  CLOSE is an operation meaning "I have no more data to send."  The
+>  notion of closing a full-duplex connection is subject to ambiguous
+>  interpretation, of course, since it may not be obvious how to treat
+>  the receiving side of the connection.  We have chosen to treat CLOSE
+>  in a simplex fashion.  The user who CLOSEs may continue to RECEIVE
+>  until he is told that the other side has CLOSED also.  Thus, a program
+>  could initiate several SENDs followed by a CLOSE, and then continue to
+>  RECEIVE until signaled that a RECEIVE failed because the other side
+>  has CLOSED.  We assume that the TCP will signal a user, even if no
+>  RECEIVEs are outstanding, that the other side has closed, so the user
+>  can terminate his side gracefully.  A TCP will reliably deliver all
+>  buffers SENT before the connection was CLOSED so a user who expects no
+>  data in return need only wait to hear the connection was CLOSED
+>  successfully to know that all his data was received at the destination
+>  TCP.  Users must keep reading connections they close for sending until
+>  the TCP says no more data.
+
+#### timeouts
+
+TODO
+- set hard max time limit on each forwarded client connection?
+- TCP keepalive?
+
+
 #### accepting connections
 
-Errors encountered while listening for connections will be logged,
-but not regarded by the server as fatal.  The server will pause
-for a brief duration then resume listening.
+Errors encountered while listening for connections will be logged, but not
+regarded by the server as fatal.  The server will pause for a brief duration
+and then resume listening.
 
-If the server is unable to accept any connections, it is the
-responsibility of the server's supervisor to detect this
-symptom and take the appropriate action.
+If the server is unable to accept any connections, it is the  responsibility of
+the server's supervisor to detect this symptom and take the appropriate action.
 
 #### TLS
 
@@ -91,13 +237,19 @@ ref: https://latacora.micro.blog/
 
 #### mutual authentication
 
-- authentication scheme will use x509 certs to bind identities to public keys
-- each cert with a node identity (client node, server node) will be certified by a trust chain from some trusted root CA
-- client must be configured to trust the root CA that anchors the server's cert chain
-- server must be configured to trust the root CA that anchors the client's cert chain
-- even more importantly: client and server must be configured _not to trust_ root CAs that are not regarded as valid sources of authentication information.
+The authentication scheme will use x509 certs to bind identities to public keys.
+Each cert with a node identity (client node, server node) will be certified by
+a trust chain from some trusted root CA. Each client must be configured to trust
+the root CA that anchors the server's cert chain. Each server must be configured
+to trust the root CA that anchors the client's cert chain. Even more
+importantly, client and server must be configured _not to trust_ root CAs that
+are not regarded as valid sources of authentication information.
 
-note, in above scheme, the trust chains could be trivial, i.e. self-signed certs, if whoever is configuring all the certs decides that's the best operational decision.
+A minimal example of the above scheme could be to use a single self-signed cert
+for the server, and a single self-signed cert per client, and configure each
+node to trust the certificates of its peer(s).
+
+The server will require all clients to present a client certificate.
 
 #### subsets of upstreams
 
@@ -152,7 +304,7 @@ Examples of severe errors include:
 1. there exists no upstream that the client's connection can be forwarded to. this could be due to authorisation policy, misconfiguration of upstreams, all upstreams being unhealthy.
 2. any error is encountered while attempting to read from or write to the TCP connection between the server and the upstream
 
-Since the server is "agnostic" of the specific application-layer
+Since the server is unaware of the specific application-layer
 protocol that the client is using to communicate with an upstream,
 it is unable to communicate the cause of the error to the client
 using an application-layer protocol.
@@ -160,20 +312,6 @@ using an application-layer protocol.
 Any errors related to the connection between the client and the
 server encountered at the underlying TLS or TCP protocol layers
 will be communicated by those protocol modules in the standard way.
-
-#### forwarding connections
-
-tradeoff: the server will make no attempt to maintain a pool of upstream connections that can be reused across multiple client connections. the server will make no attempt to maintain a queue of warm upstream connections. this has the consequence the connection forwarding logic simpler, but will increase the latency for client communications to reach upstreams and upstream responses to reach clients.
-
-it is likely that this could be improved in future releases without needing to rework the rest of the design.
-
-if in future the server is enhanced to support (m)TLS connection forwarding between the server and upstreams, then the latency impact of failing to maintain a pool of pre-negotiated "warm" TLS connections will be even more severe due to the additional roundtrips required for a TLS handshake.
-
-#### timeouts
-
-TODO
-- set hard max time limit on each forwarded client connection?
-- TCP keepalive?
 
 #### client rate limiting
 
