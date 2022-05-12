@@ -382,7 +382,7 @@ More details:
 
 ### Future extension: Monitoring upstream health improvements
 
-In state transition rule could be enhanced to transition only after
+The state transition rule could be enhanced to transition only after
 observing some number of repeated failures or successes, respectively, or to
 make the decision based on a short-time-window estimate of the connection
 failure rate vs some defined objective.
