@@ -122,6 +122,12 @@ For simplicity, the proof-of-concept server will make no attempt to support:
 - SNI
 - revocation of certificates in the client's trust chain
 
+It is possible that the decision to load trusted CA certs from the usual 
+operating-system defined location may make it easier for users to 
+accidentally misconfigure the server. A production server may wish to 
+redesign this and require the location of trusted CA certs to be explicitly 
+specified, to force users to think about the decision.
+
 ### Client rate limiting
 
 Rate limiting is implemented used the client's identity, after authentication.
