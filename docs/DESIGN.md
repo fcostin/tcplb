@@ -23,7 +23,9 @@ Server scope
 
 ## Details
 
+
 - Protocols supported for forwarding
+- CLI UX
 - Forwarding flow
 - Timeouts
 - Communicating errors to the client
@@ -33,7 +35,8 @@ Server scope
 - Client rate limiting
 - Authorisation
 - Monitoring upstream health
-- Performance
+- Future extension: Monitoring upstream health improvements
+- Future extension: Performance
 - Future extension: TLS between server and upstreams
 - Future extension: High availability
 
@@ -49,6 +52,27 @@ where the load balancer can be applied, and reduces the complexity and
 effort of implementation but restricts the server's ability to perform
 very well in any particular situation, compared to specialised load 
 balancers that include application protocol specific design optimisations.
+
+### CLI UX
+
+Proof-of-concept load balancer application will support configuration of 
+minimal set of options using flags:
+
+- bind address to listen on
+- where to find its certificate & private key
+- list of 0 or more upstream addresses
+
+Load balancer will display help when invoked with no arguments and exit with 
+nonzero status on fatal errors.
+
+Other parameters (e.g. timeouts) will be defined as constants in the code and 
+will require rebuilding from source to tweak.
+
+Beyond proof-of-concept, the application aspires to:
+
+- expose parameters users are likely to want to tune in configuration
+- support reading configuration from file
+- support reading configuration from environment variables
 
 ### Forwarding flow
 
@@ -314,8 +338,8 @@ Least-effort option is to regard all upstreams as permanently healthy,
 regardless of evidence to contrary.
 
 With more effort, we can regard health checking as problem of load balancer 
-server estimating its belief-state of each upstream, and deciding if it is healthy to be forwarded 
-new connections, or unhealthy.
+server estimating its belief-state of each upstream, and deciding if it is  
+healthy to be forwarded new connections, or unhealthy.
 
 Health checking can be active (e.g. probe each upstream according to some  
 frequency) or passive (e.g. infer health from what is observed when 
@@ -351,21 +375,23 @@ More details:
   forwarded connections, once the decision has been made to forward them to 
   some given upstream, they will be left to complete or fail.
 
-In future the above transition rule could be enhanced to transition only after 
-observing some number of repeated failures or successes, respectively, or to 
-make the decision based on a short-time-window estimate of the connection 
+### Future extension: Monitoring upstream health improvements
+
+In state transition rule could be enhanced to transition only after
+observing some number of repeated failures or successes, respectively, or to
+make the decision based on a short-time-window estimate of the connection
 failure rate vs some defined objective.
 
 Further ideas:
 
-- probabilistic model - hidden Markov model with two hidden states, HEALTHY & 
+- probabilistic model - hidden Markov model with two hidden states, HEALTHY &
   UNHEALTHY. infer hidden state probabilities given observations
-- software circuit breakers
+- review software circuit breaker state machines
 - nginx TCP health check documentation
-- in principle, groups of load balancers could pool observations for better 
+- in principle, groups of load balancers could pool observations for better
   collective estimates of upstream health
 
-### Performance
+### Future extension: Performance
 
 Performance is a non-goal of the proof-of-concept server.
 
