@@ -239,6 +239,11 @@ specified, to force users to think about the decision.
 
 ### Client rate limiting
 
+Rate limiting will be interpreted as the maximum number of simultaneous TLS
+connections a given client identity has with the server. This is simple to
+implement. One downside of counting connections is that a single client
+could consume a large amount of bandwidth.
+
 Rate limiting is implemented used the client's identity, after authentication.
 This has the advantage that we know which clients we are rate limiting, and  
 fits naturally with authorisation, but has the disadvantage of consuming 
