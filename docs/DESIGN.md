@@ -160,7 +160,7 @@ timeout, 1+ bytes copied    okay         reset timeout, continue another copy
 Ensuring writing is shutdown on the dst conn after seeing an EOF from the
 src conn is intended to send all data read from src before EOF to the dst, and
 then inform the dst that no more messages will be coming.  The `net.Conn`
-abstraction doesn't quite suffice, we also need `CloseRead` to handle this
+abstraction doesn't quite suffice, we also need `CloseWrite` to handle this
 scenario.
 
 ```
