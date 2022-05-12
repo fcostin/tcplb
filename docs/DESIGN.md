@@ -174,7 +174,7 @@ Ref: "3.5. Closing a Connection" in [rfc793](https://www.ietf.org/rfc/rfc793.txt
 
 Complication: the "bytes copied" indicator used to express the application
 idle timeout needs to consider bytes copied in both directions, from this
-single copy operation and the anti-parallel one, otherwise it may 
+single copy operation and the anti-parallel one, otherwise it may close
 application connections where one direction of the conversation is silent, but
 the other is very busy. Maybe there's a cleaner way to express it.
 
