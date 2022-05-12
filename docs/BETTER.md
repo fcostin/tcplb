@@ -69,10 +69,58 @@ not depend on making calls to external services over the network. These steps
 can be evaluated quickly. Step 8, establishing a connection with an upstream, 
 could add significant latency. See the performance section.
 
+### TLS
+
+There is a tradeoff between security and supporting backwards compatibility 
+with clients that may only implement known-vulnerable protocols.
+
+In ascending order of security and decreasing compatibility, we have:
+
+1. server is willing to entertain TLS 1.0 connections, and a wide variety of 
+   cipher suites
+2. server accepts TLS 1.2 or TLS 1.3 only, but refuses to use particularly 
+   broken cipher suites
+3. server accepts TLS 1.3 only, limited to the
+   [set of cipher suites](https://datatracker.ietf.org/doc/html/rfc8446#section-9.1)
+   that the TLS 1.3 standard dictates TLS-compliant applications MUST or
+   SHOULD support
+4. custom protocol: server accepts connections with TLS 1.3 only, using a 
+   fixed choice of cipher suites (`TLS_CHACHA20_POLY1305_SHA256`) and curve  
+   preferences (`X25519`), and will refuse to accept anything less, as 
+   recommended by [a latacora blog post from 2018](https://latacora.micro.
+   blog/2018/04/03/cryptographic-right-answers.html).
+
+For the proof-of-concept, the server & a compatible client will restrict 
+themselves to option 3, TLS 1.3, as that is simple to configure, and may 
+implement option 4 if time permits.
+
 ### Authentication
 
 Authentication will be implemented using TLS with mutual authentication 
 between the client and the server.
+
+The server must be configured with a certificate and corresponding private
+key. This certificate will be presented to clients who wish to negotiate TLS
+connections.
+
+The server will load trusted CA certs from the environment in the usual 
+operating-system defined location. These CA certs will be used to validate 
+the trust chain of the certificate presented by the client. Since the client 
+certificate will be used as the basis of authentication, the server MUST NOT 
+be configured to trust CA roots that are not trusted to verify client 
+identities for purposes of authentication.
+
+Similarly, the client will validate the certificate presented by the server,
+and use its owned trusted CA certs to evaluate if the server is authenticated.
+
+For a minimal demonstration, a client and a server could be equipped to present
+self-signed certificates, and configured to use each other's self-signed 
+certificate as a trusted CA. This would not give much operational 
+flexibility compared to using a CA.
+
+For simplicity, the proof-of-concept server will make no attempt to support:
+- SNI
+- revocation of certificates in the client's trust chain
 
 ### Client rate limiting
 
@@ -83,7 +131,7 @@ server resources during the TLS handshake. An alternative could be to rate
 limit by client IP address, but this requires making assumptions on the  
 relationship between IPs and clients. A production server facing high volume 
 hostile network traffic may need to rate limit by IP in addition to rate  
-limiting by client identity.
+limiting by client identity, or rely on another component to perform this job.
 
 A single client certificate may bind multiple identities (see authorisation
 section). A simple approach is to track them all and rate limit them
@@ -169,7 +217,11 @@ identifying and issuing certificates to clients, and make it difficult to
 adjust or revoke group membership, without a reliable mechanism for issuing
 short-lived certificates to clients.
 
+### Monitoring upstream health
+
 ### Performance
+
+Performance is a non-goal of the proof-of-concept server.
 
 In some settings (e.g. ecommerce), reducing connection latency is highly
 valuable, and users may want the server to set up a forwarded connection
