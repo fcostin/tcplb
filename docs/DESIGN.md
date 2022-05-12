@@ -426,7 +426,7 @@ touches on the design in several places but does not radically change it:
 
 - the server needs to expose a way for the user to indicate
   which upstreams will use TLS connections, and which will use TCP
-- if the server actively probes upstreams to infer upstream heath, upstreams
+- if the server actively probes upstreams to infer upstream health, upstreams
   configured to use TLS connections need to be probed over TLS
 - the latency required to establish a logical application connection between
   client and upstream will increase if the client has to wait for a TLS
