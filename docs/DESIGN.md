@@ -196,8 +196,7 @@ In ascending order of security and decreasing compatibility, we have:
 4. custom protocol: server accepts connections with TLS 1.3 only, using a 
    fixed choice of cipher suites (`TLS_CHACHA20_POLY1305_SHA256`) and curve  
    preferences (`X25519`), and will refuse to accept anything less, as 
-   recommended by [a latacora blog post from 2018](https://latacora.micro.
-   blog/2018/04/03/cryptographic-right-answers.html).
+   recommended by [a latacora blog post from 2018](https://latacora.micro.blog/2018/04/03/cryptographic-right-answers.html).
 
 For the proof-of-concept, the server & a compatible client will restrict 
 themselves to option 3, TLS 1.3, as that is simple to configure, and may 
