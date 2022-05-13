@@ -9,7 +9,7 @@ Library scope
 1. Primitives for connection forwarding, including:
     1. a least-connections forwarding policy, that tracks the number of
        connections per upstream.
-    2. a health-checking forwarding policy, that removes unhealthy upstreams
+    2. health-checking, to remove unhealthy upstreams
 2. A per-client connection rate limiter that tracks the number of client
    connections
 
