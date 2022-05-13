@@ -191,7 +191,7 @@ In ascending order of security and decreasing compatibility, we have:
 
 1. server is willing to entertain TLS 1.0 connections, and a wide variety of 
    cipher suites
-2. server accepts TLS 1.2 or TLS 1.3 only, but refuses to use particularly 
+2. server accepts TLS 1.2 or TLS 1.3 only, but refuses to use any known 
    broken cipher suites
 3. server accepts TLS 1.3 only, limited to the
    [set of cipher suites](https://datatracker.ietf.org/doc/html/rfc8446#section-9.1)
@@ -203,8 +203,7 @@ In ascending order of security and decreasing compatibility, we have:
    recommended by [a latacora blog post from 2018](https://latacora.micro.blog/2018/04/03/cryptographic-right-answers.html).
 
 For the proof-of-concept, the server & a compatible client will restrict 
-themselves to option 3, TLS 1.3, as that is simple to configure, and may 
-implement option 4 if time permits.
+themselves to option 3, TLS 1.3.
 
 ### Authentication
 
