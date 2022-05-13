@@ -1,0 +1,124 @@
+{
+	"definitions": {},
+	"$schema": "http://json-schema.org/draft-07/schema#", 
+	"$id": "https://github.com/fcostin/tcplb/blob/master/schemas/tcplb_authz_v0.json", 
+	"type": "object",
+	"required": [
+		"meta"
+	],
+	"properties": {
+		"meta": {
+			"$id": "#root/meta", 
+			"type": "object",
+			"required": [
+				"format",
+				"version"
+			],
+			"properties": {
+				"format": {
+					"$id": "#root/meta/format", 
+                    "title": "format", 
+					"type": "string",
+					"default": "tcplb_authz"
+				},
+				"version": {
+					"$id": "#root/meta/version", 
+                    "title": "version", 
+					"type": "integer"
+				}
+			}
+		}
+,
+		"idtype_clientid_group": {
+			"$id": "#root/idtype_clientid_group", 
+			"type": "array",
+			"items":{
+				"$id": "#root/idtype_clientid_group/items", 
+				"type": "object",
+				"required": [
+					"t",
+					"c",
+					"g"
+				],
+				"properties": {
+					"t": {
+						"$id": "#root/idtype_clientid_group/items/t",
+                        "title": "clientid_type", 
+						"type": "string",
+						"enum": [
+							"common_name"
+						]
+					},
+					"c": {
+						"$id": "#root/idtype_clientid_group/items/c",
+                        "title": "clientid", 
+						"type": "string",
+                        "minLength": 1
+					},
+					"g": {
+						"$id": "#root/idtype_clientid_group/items/g", 
+						"title": "group",
+						"type": "string",
+                        "minLength": 1
+					}
+				}
+			}
+
+		},
+		"group_can_forward_to_upstreamgroup": {
+			"$id": "#root/group_can_forward_to_upstreamgroup", 
+			"type": "array",
+			"items":{
+				"$id": "#root/group_can_forward_to_upstreamgroup/items", 
+				"type": "object",
+				"required": [
+					"g",
+					"ug"
+				],
+				"properties": {
+					"g": {
+						"$id": "#root/group_can_forward_to_upstreamgroup/items/g",
+                        "title": "group", 
+						"type": "string",
+						"minLength": 1
+					},
+					"ug": {
+						"$id": "#root/group_can_forward_to_upstreamgroup/items/ug", 
+						"title": "upstreamgroup", 
+						"type": "string",
+						"minLength": 1
+					}
+				}
+			}
+
+		},
+		"upstreamgroup_upstream": {
+			"$id": "#root/upstreamgroup_upstream", 
+			"type": "array",
+			"items":{
+				"$id": "#root/upstreamgroup_upstream/items", 
+				"type": "object",
+				"required": [
+					"ug",
+					"u"
+				],
+				"properties": {
+					"ug": {
+						"$id": "#root/upstreamgroup_upstream/items/ug",
+                        "title": "upstreamgroup", 
+						"type": "string",
+						"minLength": 1
+					},
+					"u": {
+						"$id": "#root/upstreamgroup_upstream/items/u",
+                        "title": "upstream", 
+						"type": "string",
+						"minLength": 1
+					}
+				}
+			}
+
+		}
+	}
+}
+
