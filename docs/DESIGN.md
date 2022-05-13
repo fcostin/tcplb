@@ -60,10 +60,17 @@ minimal set of options using flags:
 
 - bind address to listen on
 - where to find its certificate & private key
+- where to find trusted CA roots to use when authenticating clients (see
+  authentication section)
 - list of one or more upstream addresses
 
 Load balancer will display help when invoked with no arguments and exit with 
 nonzero status on fatal errors.
+
+Load balancer will regard the following as fatal errors that prevent startup:
+- no bind address specified
+- certificate & private key not specified or failed to load
+- trusted CA roots not specified or failed to load
 
 Other parameters (e.g. timeouts) will be defined as constants in the code and 
 will require rebuilding from source to tweak.
@@ -222,12 +229,16 @@ The server must be configured with a certificate and corresponding private key.
 This certificate will be presented to clients who wish to negotiate TLS
 connections.
 
-The server will load trusted CA certs from the environment in the usual 
-operating-system defined location. These CA certs will be used to validate 
-the trust chain of the certificate presented by the client. Since the client 
-certificate will be used as the basis of authentication, the server MUST NOT 
-be configured to trust CA roots that are not trusted to verify client 
-identities for purposes of authentication.
+The server will load the CA roots to use for client certificate
+validation from an explicit location specified by the user (see CLI UX).
+The server MUST NOT be configured to trust CA roots that are not trusted to
+verify client identities for purposes of authentication -- in particular,
+the load balancer should be configured to trust a limited number
+of CA roots that are used to issue client certificates. This configuration
+is very different from the default set of CAs trusted by operating systems,
+web browsers. Requiring the CA roots to be explicitly specified by the user
+instead of loading them from an operating-system defined place reduces the
+risk that a user may mis-configure which CA roots are trusted.
 
 Similarly, the client will validate the certificate presented by the server,
 and use its own trusted CA certs to evaluate if the server is 
@@ -235,11 +246,7 @@ authenticated. Assuming that the client wishes to guarantee that it connects
 to the load balancer, the client must either configure itself to trust only
 the load balancer's certificate, or some limited set of CAs that are
 trusted to only issue certificates for nodes that the client is willing to
-establish mTLS connections to. E.g. if the load balancer belongs to some
-organisation that has an internal CA that is used only to issue load
-balancer certificates, the client could be configured to trust that CA only. 
-Note this configuration is very different from the default set of 
-CAs trusted by operating systems, web browsers.
+establish mTLS connections to.
 
 For a minimal demonstration, a client and a server could be equipped to present
 self-signed certificates, and configured to use each other's self-signed 
