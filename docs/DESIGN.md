@@ -15,7 +15,7 @@ Library scope
 
 Server scope
 
-1. mTLS support between the client and the upstream, to support encryption,
+1. mTLS support between the client and the server, to support encryption,
    integrity and mutual authentication
 2. an authorisation scheme defining what upstreams are available to each client
 3. accept and forward decrypted connections to upstreams using library
