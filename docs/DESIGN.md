@@ -366,10 +366,12 @@ More details:
 - State will be maintained per upstream to track current inferred health 
   state, any additional per-upstream state statistics (e.g. count of 
   consecutive failed or successful connections) could be stored here.
-- Transition rule between health states will be the simplest thing: if 
-  HEALTHY and observe one probe failure (either active or passive probe) 
-  then successor state is UNHEALTHY. Similarly, if UNHEALTHY and observe one 
-  probe success then success state is HEALTHY. Otherwise, state does not change.
+- Transition rule between health states will be the simplest thing: if
+  HEALTHY and observe `f` probe failures (either active or passive probe)
+  then successor state is UNHEALTHY. Similarly, if UNHEALTHY and observe `s`
+  consecutive probe successes then success state is HEALTHY. Otherwise, state
+  does not change. Parameters `f` and `s` will be small integers set to
+  implementation-defined defaults.
 - If observed probe outcome causes state change from HEALTHY to UNHEALTHY or 
   vice versa, this will not cause the server to preempt any existing 
   forwarded connections, once the decision has been made to forward them to 
@@ -377,10 +379,9 @@ More details:
 
 ### Future extension: Monitoring upstream health improvements
 
-The state transition rule could be enhanced to transition only after
-observing some number of repeated failures or successes, respectively, or to
-make the decision based on a short-time-window estimate of the connection
-failure rate vs some defined objective.
+The state transition rule could be enhanced to make the decision based on a
+short-time-window estimate of the connection failure rate vs some defined
+objective.
 
 Further ideas:
 
