@@ -321,14 +321,7 @@ way. Proof-of-concept servers may choose to embed this data directly into
 application code. More sophisticated servers may choose to load this data from
 an external configuration file or reading it from some external integration.
 
-Comments & alternatives:
-
-It isn't clear if the authorisation scheme proposed above is the best idea. 
-A minimal proof-of-concept implementation could be to instead implement
-`AuthorisedUpstreams(c)` in terms of a lookup table
-`AuthorisedUpstreamsForIdentity` mapping identities to subsets of upstreams.
-
-It might be clearer to rework the "group" concept as "role".
+Rejected alternative design:
 
 We could instead embed claims such as client group membership in the client 
 certificate. This design would couple authorisation decisions with 
