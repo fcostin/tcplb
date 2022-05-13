@@ -63,6 +63,7 @@ minimal set of options using flags:
 - where to find trusted CA roots to use when authenticating clients (see
   authentication section)
 - list of one or more upstream addresses
+- where to find authorisation configuration data (filesystem path)
 
 Load balancer will display help when invoked with no arguments and exit with 
 nonzero status on fatal errors.
@@ -74,6 +75,9 @@ Load balancer will regard the following as fatal errors that prevent startup:
 
 Other parameters (e.g. timeouts) will be defined as constants in the code and 
 will require rebuilding from source to tweak.
+
+For proof-of-concept, authorisation configuration data will be supplied by the
+user in a single JSON file. See the authorisation section for more information.
 
 Beyond proof-of-concept, the application aspires to:
 
@@ -343,10 +347,52 @@ upstreams that the client is authorised to be forwarded to will be the empty
 set, i.e., the client will not be authorised to be forwarded to any upstream.
 
 The remaining pieces of input data for authorisation, `Groups(.)`, `UGroups(.)`
-and `Upstreams(.)`, may be sourced by the server in an implementation-defined
-way. Proof-of-concept servers may choose to embed this data directly into
-application code. More sophisticated servers may choose to load this data from
-an external configuration file or reading it from some external integration.
+and `Upstreams(.)`, will be sourced by the proof-of-concept server from a 
+JSON configuration file in a path specified by the user.
+
+#### proof-of-concept authorisation data format
+
+Example:
+
+```
+{
+    "meta": {
+        "format": "tcplb_authz",
+        "version": 0
+    },
+    "idtype_clientid_group": [
+        {"t": "common_name", "c": "Alice", "g": "admin"},
+        {"t": "common_name", "c": "Bob", "g": "beta"},
+        {"t": "common_name", "c": "Bob", "g": "alpha"}
+    ],
+    "group_can_forward_to_upstreamgroup": [
+        {"g": "alpha", "ug": "web"},
+        {"g": "beta", "ug": "worker"},
+        {"g": "admin", "ug": "web"},
+        {"g": "admin", "ug": "worker"}
+    ],
+    "upstreamgroup_upstream": [
+        {"ug": "web", "u": "127.0.0.1:1234"},
+        {"ug": "web", "u": "127.0.0.1:4567"},
+        {"ug": "worker", "u": "127.0.0.1:5678"},
+        {"ug": "worker", "u": "127.0.0.1:5679"}
+    ]
+}
+```
+- the "meta" section supports future evolution of this configuration format
+- "idtype_clientid_group" declares which client identity ("c") of
+  which identity type ("t") belongs to which group ("g").
+- "group_can_forward_to_upstreamgroup" declares which group ("g") is allowed to
+  be forwarded to which upstream group ("ug"),
+- "upstreamgroup_upstream" declares which upstream ("u") belongs
+  to which upstream group ("ug").
+
+A [version 0 schema](../schemas/tcplb_authz_v0.json) for this data is proposed.
+A proof of concept server may choose not to implement schema validation.
+
+
+Beyond proof-of-concept, more sophisticated servers may choose to load this
+data by reading it from some external integration.
 
 Rejected alternative design:
 
