@@ -205,13 +205,21 @@ In ascending order of security and decreasing compatibility, we have:
 For the proof-of-concept, the server & a compatible client will restrict 
 themselves to option 3, TLS 1.3.
 
+The server and client will additionally configure their 
+respective TLS 1.3 "signature_algorithms" extension to restrict the range of 
+signature algorithms they are willing to accept to include Ed25519 only.
+See: [rfc8446.html#section-4.2.3](https://www.rfc-editor.org/rfc/rfc8446.
+html#section-4.2.3).
+
 ### Authentication
 
 Authentication will be implemented using TLS with mutual authentication 
 between the client and the server.
 
-The server must be configured with a certificate and corresponding private
-key. This certificate will be presented to clients who wish to negotiate TLS
+All certificates (client, server) will use the Ed25519 key algorithm.
+
+The server must be configured with a certificate and corresponding private key.
+This certificate will be presented to clients who wish to negotiate TLS
 connections.
 
 The server will load trusted CA certs from the environment in the usual 
@@ -222,7 +230,16 @@ be configured to trust CA roots that are not trusted to verify client
 identities for purposes of authentication.
 
 Similarly, the client will validate the certificate presented by the server,
-and use its owned trusted CA certs to evaluate if the server is authenticated.
+and use its own trusted CA certs to evaluate if the server is 
+authenticated. Assuming that the client wishes to guarantee that it connects 
+to the load balancer, the client must either configure itself to trust only
+the load balancer's certificate, or some limited set of CAs that are
+trusted to only issue certificates for nodes that the client is willing to
+establish mTLS connections to. E.g. if the load balancer belongs to some
+organisation that has an internal CA that is used only to issue load
+balancer certificates, the client could be configured to trust that CA only. 
+Note this configuration is very different from the default set of 
+CAs trusted by operating systems, web browsers.
 
 For a minimal demonstration, a client and a server could be equipped to present
 self-signed certificates, and configured to use each other's self-signed 
