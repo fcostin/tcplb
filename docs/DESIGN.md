@@ -60,7 +60,7 @@ minimal set of options using flags:
 
 - bind address to listen on
 - where to find its certificate & private key
-- list of 0 or more upstream addresses
+- list of one or more upstream addresses
 
 Load balancer will display help when invoked with no arguments and exit with 
 nonzero status on fatal errors.
@@ -93,7 +93,9 @@ Beyond proof-of-concept, the application aspires to:
    prioritisation rule (e.g. least forwarded connections). Ties may be
    broken arbitrarily.
 8. The server attempts to establish a TCP connection with the selected
-   upstream. If this fails, the server closes the connection to the client.
+   upstream. If this connection attempt fails, the server will return to step 6
+   in this flow and iterate. A shared connection timeout will apply across all
+   connection attempts.
 9. The server begins forwarding data between the client TLS connection and
    the upstream TCP connection.
 
@@ -110,7 +112,9 @@ could add significant latency. See the performance section.
 ### Timeouts
 
 The server will enforce timeouts when establishing TLS connections with 
-clients, establishing TCP connections with upstreams. It should also 
+clients, establishing TCP connections with upstreams. If multiple attempts
+are needed to connect to a healthy upstream for a single client connection,
+the timeout will be shared. The server should also
 implement an idle timeout for established application-level connections 
 between a client and upstream: if an idle timeout period elapses without a 
 byte being successfully written in one direction or the other, the server 
