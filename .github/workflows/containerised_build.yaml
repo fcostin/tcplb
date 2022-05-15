@@ -1,0 +1,16 @@
+name: containerised_build
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  containerised_build:
+    runs-on: ["ubuntu-20.04"]
+    steps:
+      - name: checkout repo
+        uses: actions/checkout@v2
+      - name: make containerised_build
+        run: make containerised_build
