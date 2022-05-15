@@ -9,6 +9,8 @@ import (
 // comparison operators (==, !=).
 type ClientID interface {
 	// TODO add required methods, or IsClientID, or switch to concrete type
+
+	// TODO this is such a core type, move it into its own package.
 }
 
 // Upstream represents an upstream that clients can be forwarded to.
