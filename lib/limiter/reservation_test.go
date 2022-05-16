@@ -3,7 +3,6 @@ package limiter
 import (
 	"context"
 	"github.com/stretchr/testify/require"
-	"math/rand"
 	"sync"
 	"tcplb/lib/core"
 	"testing"
@@ -112,7 +111,7 @@ func TestUniformlyBoundedClientReserverMultipleSequentialClients(t *testing.T) {
 }
 
 func TestUniformlyBoundedClientReserverConcurrent(t *testing.T) {
-	// Randomised scenario of concurrent reservation attempts by two clients.
+	// Scenario of concurrent reservation attempts by two clients.
 	// The intent of this test is to potentially identify data races.
 
 	// We start a number of worker threads for two clients. Each worker thread
@@ -121,12 +120,6 @@ func TestUniformlyBoundedClientReserverConcurrent(t *testing.T) {
 	// BEWARE: if the reserver implementation is defective, the behaviour
 	// of this test may be nondeterministic as it depends upon goroutine
 	// scheduling.
-
-	// Pin random seed. Used to control worker thread pauses between
-	// successive reservation attempts.
-	seed := int64(12345)
-	source := rand.NewSource(seed)
-	random := rand.New(source)
 
 	// create a reserver with some per client limit
 	var maxReservationsPerClient int64 = 5
@@ -155,14 +148,11 @@ func TestUniformlyBoundedClientReserverConcurrent(t *testing.T) {
 
 	stats := make(chan workerStats, int64(len(clients))*workersPerClient)
 
-	worker := func(c core.ClientID, iters int64, seed int64, rsvr ClientReserver, out chan<- workerStats) {
+	worker := func(c core.ClientID, iters int64, rsvr ClientReserver, out chan<- workerStats) {
 		defer wg.Done()
 		var s workerStats
 		s.Client = c
 		ctx := context.Background()
-
-		source := rand.NewSource(seed)
-		random := rand.New(source)
 
 		for i := int64(0); i < iters; i++ {
 			r, err := rsvr.TryReserve(ctx, c)
@@ -175,7 +165,7 @@ func TestUniformlyBoundedClientReserverConcurrent(t *testing.T) {
 				s.Errors += 1
 			}
 
-			time.Sleep(time.Duration(random.Int63n(1000)))
+			time.Sleep(time.Microsecond)
 
 			if err != nil {
 				continue
@@ -191,7 +181,7 @@ func TestUniformlyBoundedClientReserverConcurrent(t *testing.T) {
 	for _, c := range clients {
 		for i := int64(0); i < workersPerClient; i += 1 {
 			wg.Add(1)
-			go worker(c, itersPerWorker, random.Int63(), rsvr, stats)
+			go worker(c, itersPerWorker, rsvr, stats)
 		}
 	}
 
