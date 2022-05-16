@@ -7,10 +7,6 @@ import (
 	"tcplb/lib/core"
 )
 
-type ClientReservation struct {
-	c core.ClientID
-}
-
 // MaxReservationsExceeded is the error returned by UniformlyBoundedClientReserver
 // when an attempted reservation fails because the client has too  many reservations.
 var MaxReservationsExceeded = errors.New("maximum client reservations exceeded")
@@ -19,11 +15,11 @@ var MaxReservationsExceeded = errors.New("maximum client reservations exceeded")
 // to acquire arbitrarily many reservations without constraint.
 type UnboundedClientReserver struct{}
 
-func (u UnboundedClientReserver) TryReserve(ctx context.Context, c core.ClientID) (ClientReservation, error) {
-	return ClientReservation{c: c}, nil
+func (u UnboundedClientReserver) TryReserve(ctx context.Context, c core.ClientID) error {
+	return nil
 }
 
-func (u UnboundedClientReserver) ReleaseReservation(ctx context.Context, r ClientReservation) error {
+func (u UnboundedClientReserver) ReleaseReservation(ctx context.Context, c core.ClientID) error {
 	return nil
 }
 
@@ -56,9 +52,9 @@ type UniformlyBoundedClientReserver struct {
 	resByClient map[core.ClientID]int64
 }
 
-func NewUniformlyBoundedClientReserver(n int64) *UniformlyBoundedClientReserver {
+func NewUniformlyBoundedClientReserver(maxReservationsPerClient int64) *UniformlyBoundedClientReserver {
 	return &UniformlyBoundedClientReserver{
-		MaxReservationsPerClient: n,
+		MaxReservationsPerClient: maxReservationsPerClient,
 		resByClient:              make(map[core.ClientID]int64),
 	}
 }
@@ -71,36 +67,35 @@ func (b *UniformlyBoundedClientReserver) sanityCheck(n int64) {
 }
 
 // TryReserve attempts to acquire a reservation for the given client.
-// If the attempt succeeds, the reservation is returned with nil error.
+// If the attempt succeeds, nil is returned.
 // If the attempt fails because the client has exceeded the maximum number
-// of reservations, the zero reservation and MaxReservationsExceeded error
-// will be returned.
+// of reservations, MaxReservationsExceeded error will be returned.
 //
 // If no reservations are available, this call does not block.
-func (b *UniformlyBoundedClientReserver) TryReserve(ctx context.Context, c core.ClientID) (ClientReservation, error) {
+func (b *UniformlyBoundedClientReserver) TryReserve(ctx context.Context, c core.ClientID) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	n := b.resByClient[c]
 	b.sanityCheck(n)
 	if n >= b.MaxReservationsPerClient {
-		return ClientReservation{}, MaxReservationsExceeded
+		return MaxReservationsExceeded
 	}
 	b.resByClient[c] = n + 1
 	b.sanityCheck(n)
-	return ClientReservation{c: c}, nil
+	return nil
 }
 
 // ReleaseReservation releases a reservation that was previously acquired
 // by TryReserve.
-func (b *UniformlyBoundedClientReserver) ReleaseReservation(ctx context.Context, r ClientReservation) error {
+func (b *UniformlyBoundedClientReserver) ReleaseReservation(ctx context.Context, c core.ClientID) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	n := b.resByClient[r.c]
+	n := b.resByClient[c]
 	b.sanityCheck(n)
 	n = n - 1
-	b.resByClient[r.c] = n
+	b.resByClient[c] = n
 	if n == 0 {
-		delete(b.resByClient, r.c)
+		delete(b.resByClient, c)
 	}
 	b.sanityCheck(n)
 	return nil
