@@ -11,31 +11,9 @@ type ClientReservation struct {
 	c core.ClientID
 }
 
-// MaxReservationsExceeded is the error returned by ClientReserver
-// when an attempted reservation fails because the client has too
-// many reservations.
+// MaxReservationsExceeded is the error returned by UniformlyBoundedClientReserver
+// when an attempted reservation fails because the client has too  many reservations.
 var MaxReservationsExceeded = errors.New("maximum client reservations exceeded")
-
-// ClientReserver represents an object that can acquire and release
-// reservations for clients.
-//
-// Multiple goroutines may invoke methods on a ClientReserver simultaneously.
-type ClientReserver interface {
-
-	// TryReserve attempts to acquire a reservation for the given client.
-	// If the attempt succeeds, the reservation is returned with nil error.
-	// If the attempt fails because the client has exceeded the maximum number
-	// of reservations, the zero reservation and MaxReservationsExceeded error
-	// will be returned.
-	//
-	// Implementations of ClientReserver are discouraged from blocking until
-	// a reservation becomes available.
-	TryReserve(ctx context.Context, c core.ClientID) (ClientReservation, error)
-
-	// ReleaseReservation releases a reservation that was previously acquired
-	// by TryReserve.
-	ReleaseReservation(ctx context.Context, r ClientReservation) error
-}
 
 // UnboundedClientReserver is a ClientReserver where all clients are free
 // to acquire arbitrarily many reservations without constraint.
@@ -52,6 +30,9 @@ func (u UnboundedClientReserver) ReleaseReservation(ctx context.Context, r Clien
 // UniformlyBoundedClientReserver is a ClientReserver where all clients are
 // subject to a uniform maximum limit on the number of reservations they can
 // acquire at once.
+//
+// Multiple goroutines may invoke methods on a UniformlyBoundedClientReserver
+// simultaneously.
 type UniformlyBoundedClientReserver struct {
 	MaxReservationsPerClient int64
 
@@ -98,6 +79,13 @@ func (b *UniformlyBoundedClientReserver) sanityCheck(n int64) {
 	}
 }
 
+// TryReserve attempts to acquire a reservation for the given client.
+// If the attempt succeeds, the reservation is returned with nil error.
+// If the attempt fails because the client has exceeded the maximum number
+// of reservations, the zero reservation and MaxReservationsExceeded error
+// will be returned.
+//
+// If no reservations are available, this call does not block.
 func (b *UniformlyBoundedClientReserver) TryReserve(ctx context.Context, c core.ClientID) (ClientReservation, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -111,6 +99,8 @@ func (b *UniformlyBoundedClientReserver) TryReserve(ctx context.Context, c core.
 	return ClientReservation{c: c}, nil
 }
 
+// ReleaseReservation releases a reservation that was previously acquired
+// by TryReserve.
 func (b *UniformlyBoundedClientReserver) ReleaseReservation(ctx context.Context, r ClientReservation) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
