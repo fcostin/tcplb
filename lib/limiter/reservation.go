@@ -11,6 +11,14 @@ import (
 // when an attempted reservation fails because the client has too  many reservations.
 var MaxReservationsExceeded = errors.New("maximum client reservations exceeded")
 
+// NoReservationExists is the error returned by UniformlyBoundedClientReserver if
+// a caller attempts to release a reservation that wasn't previously acquired.
+var NoReservationExists = errors.New("no reservation exists")
+
+// InvariantFailure is the error returned by UniformlyBoundedClientReserver if it
+// detects internal invariants have been broken.
+var InvariantFailure = errors.New("reservation invariant failure")
+
 // UnboundedClientReserver is a ClientReserver where all clients are free
 // to acquire arbitrarily many reservations without constraint.
 type UnboundedClientReserver struct{}
@@ -59,13 +67,6 @@ func NewUniformlyBoundedClientReserver(maxReservationsPerClient int64) *Uniforml
 	}
 }
 
-func (b *UniformlyBoundedClientReserver) sanityCheck(n int64) {
-	// assert invariant 0 <= n <= MaxReservationsPerClient
-	if n < 0 || n > b.MaxReservationsPerClient {
-		panic("UniformlyBoundedClientReserver: internal invariant failure")
-	}
-}
-
 // TryReserve attempts to acquire a reservation for the given client.
 // If the attempt succeeds, nil is returned.
 // If the attempt fails because the client has exceeded the maximum number
@@ -76,27 +77,41 @@ func (b *UniformlyBoundedClientReserver) TryReserve(ctx context.Context, c core.
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	n := b.resByClient[c]
-	b.sanityCheck(n)
-	if n >= b.MaxReservationsPerClient {
+	// check invariant 0 <= n <= MaxReservationsPerClient
+	if n < 0 || n > b.MaxReservationsPerClient {
+		return InvariantFailure
+	}
+	if n == b.MaxReservationsPerClient {
 		return MaxReservationsExceeded
 	}
 	b.resByClient[c] = n + 1
-	b.sanityCheck(n)
 	return nil
 }
 
 // ReleaseReservation releases a reservation that was previously acquired
-// by TryReserve.
+// by TryReserve. If a caller has incorrectly attempted to release a
+// reservation that does not exist, NoReservationExists will be returned.
 func (b *UniformlyBoundedClientReserver) ReleaseReservation(ctx context.Context, c core.ClientID) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	n := b.resByClient[c]
-	b.sanityCheck(n)
-	n = n - 1
-	b.resByClient[c] = n
+	// check invariant 0 <= n <= MaxReservationsPerClient
+	if n < 0 || n > b.MaxReservationsPerClient {
+		return InvariantFailure
+	}
+	// communicate usage error to caller
+	if n == 0 {
+		return NoReservationExists
+	}
+	n--
+	// If we don't delete map items when their reservation count drops to
+	// zero, then for usage patterns where a very large number of clients
+	// each acquire and release a small number of reservations, the memory
+	// required for our map will be unbounded.
 	if n == 0 {
 		delete(b.resByClient, c)
+	} else {
+		b.resByClient[c] = n
 	}
-	b.sanityCheck(n)
 	return nil
 }
