@@ -96,7 +96,7 @@ func NewUniformlyBoundedClientReserver(n int64) *UniformlyBoundedClientReserver 
 
 func (b *UniformlyBoundedClientReserver) sanityCheck(n int64) {
 	// assert invariant 0 <= n <= MaxReservationsPerClient
-	if !((0 <= n) && (n <= b.MaxReservationsPerClient)) {
+	if n < 0 || n > b.MaxReservationsPerClient {
 		panic("UniformlyBoundedClientReserver: internal invariant failure")
 	}
 }
