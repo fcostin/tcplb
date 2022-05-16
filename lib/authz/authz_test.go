@@ -1,4 +1,4 @@
-package static
+package authz
 
 import (
 	"context"
@@ -23,12 +23,12 @@ func TestAuthorizer(t *testing.T) {
 	dinesh := DummyClientID("dinesh")
 	eve := DummyClientID("eve")
 
-	alpha := NewGroup("alpha")
-	beta := NewGroup("beta")
-	admin := NewGroup("admin")
+	alpha := Group{Key: "alpha"}
+	beta := Group{Key: "beta"}
+	admin := Group{Key: "admin"}
 
-	web := NewUGroup("web")
-	worker := NewUGroup("worker")
+	web := UpstreamGroup{Key: "web"}
+	worker := UpstreamGroup{Key: "worker"}
 
 	web1 := DummyUpstream("web1")
 	web2 := DummyUpstream("web2")
@@ -39,17 +39,17 @@ func TestAuthorizer(t *testing.T) {
 
 	cfgSmall := Config{
 		GroupsByClientID: map[core.ClientID][]Group{
-			alice:  []Group{admin},
-			bob:    []Group{beta, alpha},
-			cindy:  []Group{beta},
-			dinesh: []Group{alpha},
+			alice:  {admin},
+			bob:    {beta, alpha},
+			cindy:  {beta},
+			dinesh: {alpha},
 		},
-		UGroupsByGroup: map[Group][]UGroup{
-			alpha: []UGroup{web},
-			beta:  []UGroup{worker},
-			admin: []UGroup{web, worker},
+		UpstreamGroupsByGroup: map[Group][]UpstreamGroup{
+			alpha: {web},
+			beta:  {worker},
+			admin: {web, worker},
 		},
-		UpstreamsByUGroup: map[UGroup]core.USet{
+		UpstreamsByUpstreamGroup: map[UpstreamGroup]core.USet{
 			web:    core.NewUSet(web1, web2),
 			worker: core.NewUSet(worker1, worker2),
 		},
