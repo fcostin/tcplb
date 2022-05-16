@@ -1,4 +1,4 @@
-FROM golang:1.18.1-bullseye as build-env
+FROM golang:1.18-bullseye as build-env
 
 WORKDIR /go/src/app
 
