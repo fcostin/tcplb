@@ -3,7 +3,7 @@ package static
 import (
 	"context"
 	"fmt"
-	"tcplb/lib/authz"
+	"tcplb/lib/core"
 )
 
 // Group is a value type that represents a logical group of clients.
@@ -39,9 +39,9 @@ func NewUGroup(uGroupName string) UGroup {
 // Config defines the authorization data
 // required by an Authorizer.
 type Config struct {
-	GroupsByClientID  map[authz.ClientID][]Group
+	GroupsByClientID  map[core.ClientID][]Group
 	UGroupsByGroup    map[Group][]UGroup
-	UpstreamsByUGroup map[UGroup]authz.USet
+	UpstreamsByUGroup map[UGroup]core.USet
 }
 
 // Authorizer is a static forwarding authorization policy that
@@ -61,8 +61,8 @@ func NewStaticAuthorizer(config Config) *Authorizer {
 	}
 }
 
-func (a *Authorizer) AuthorizedUpstreams(ctx context.Context, c authz.ClientID) (authz.USet, error) {
-	result := authz.EmptyUSet()
+func (a *Authorizer) AuthorizedUpstreams(ctx context.Context, c core.ClientID) (core.USet, error) {
+	result := core.EmptyUSet()
 	_, exists := a.config.GroupsByClientID[c]
 	if !exists {
 		return result, nil
@@ -77,7 +77,7 @@ func (a *Authorizer) AuthorizedUpstreams(ctx context.Context, c authz.ClientID) 
 			if !exists {
 				continue
 			}
-			result = authz.UnionUpdate(result, us)
+			result = core.UnionUpdate(result, us)
 		}
 	}
 	return result, nil

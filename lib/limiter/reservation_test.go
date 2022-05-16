@@ -5,7 +5,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"math/rand"
 	"sync"
-	"tcplb/lib/authz"
+	"tcplb/lib/core"
 	"testing"
 	"time"
 )
@@ -139,7 +139,7 @@ func TestUniformlyBoundedClientReserverConcurrent(t *testing.T) {
 	clients := []DummyClientID{alice, bob}
 
 	type workerStats struct {
-		Client        authz.ClientID
+		Client        core.ClientID
 		Reserved      int64
 		Limited       int64
 		Errors        int64
@@ -155,7 +155,7 @@ func TestUniformlyBoundedClientReserverConcurrent(t *testing.T) {
 
 	stats := make(chan workerStats, int64(len(clients))*workersPerClient)
 
-	worker := func(c authz.ClientID, iters int64, seed int64, rsvr ClientReserver, out chan<- workerStats) {
+	worker := func(c core.ClientID, iters int64, seed int64, rsvr ClientReserver, out chan<- workerStats) {
 		defer wg.Done()
 		var s workerStats
 		s.Client = c
@@ -199,7 +199,7 @@ func TestUniformlyBoundedClientReserverConcurrent(t *testing.T) {
 
 	// aggregate per client stats
 	close(stats)
-	aggStatsByClient := make(map[authz.ClientID]*workerStats)
+	aggStatsByClient := make(map[core.ClientID]*workerStats)
 	for _, c := range clients {
 		aggStatsByClient[c] = &workerStats{}
 	}

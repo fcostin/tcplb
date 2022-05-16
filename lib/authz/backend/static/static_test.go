@@ -2,7 +2,7 @@ package static
 
 import (
 	"context"
-	"tcplb/lib/authz"
+	"tcplb/lib/core"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -38,7 +38,7 @@ func TestAuthorizer(t *testing.T) {
 	cfgZero := Config{}
 
 	cfgSmall := Config{
-		GroupsByClientID: map[authz.ClientID][]Group{
+		GroupsByClientID: map[core.ClientID][]Group{
 			alice:  []Group{admin},
 			bob:    []Group{beta, alpha},
 			cindy:  []Group{beta},
@@ -49,59 +49,59 @@ func TestAuthorizer(t *testing.T) {
 			beta:  []UGroup{worker},
 			admin: []UGroup{web, worker},
 		},
-		UpstreamsByUGroup: map[UGroup]authz.USet{
-			web:    authz.NewUSet(web1, web2),
-			worker: authz.NewUSet(worker1, worker2),
+		UpstreamsByUGroup: map[UGroup]core.USet{
+			web:    core.NewUSet(web1, web2),
+			worker: core.NewUSet(worker1, worker2),
 		},
 	}
 
 	scenarios := []struct {
 		name              string
-		c                 authz.ClientID
+		c                 core.ClientID
 		cfg               Config
-		expectedUpstreams authz.USet
+		expectedUpstreams core.USet
 		expectedErr       error
 	}{
 		{
 			name:              "zero alice query",
 			c:                 alice,
 			cfg:               cfgZero,
-			expectedUpstreams: authz.EmptyUSet(),
+			expectedUpstreams: core.EmptyUSet(),
 			expectedErr:       nil,
 		},
 		{
 			name:              "small alice query",
 			c:                 alice,
 			cfg:               cfgSmall,
-			expectedUpstreams: authz.NewUSet(web1, web2, worker1, worker2),
+			expectedUpstreams: core.NewUSet(web1, web2, worker1, worker2),
 			expectedErr:       nil,
 		},
 		{
 			name:              "small bob query",
 			c:                 bob,
 			cfg:               cfgSmall,
-			expectedUpstreams: authz.NewUSet(web1, web2, worker1, worker2),
+			expectedUpstreams: core.NewUSet(web1, web2, worker1, worker2),
 			expectedErr:       nil,
 		},
 		{
 			name:              "small cindy query",
 			c:                 cindy,
 			cfg:               cfgSmall,
-			expectedUpstreams: authz.NewUSet(worker1, worker2),
+			expectedUpstreams: core.NewUSet(worker1, worker2),
 			expectedErr:       nil,
 		},
 		{
 			name:              "small dinesh query",
 			c:                 dinesh,
 			cfg:               cfgSmall,
-			expectedUpstreams: authz.NewUSet(web1, web2),
+			expectedUpstreams: core.NewUSet(web1, web2),
 			expectedErr:       nil,
 		},
 		{
 			name:              "small eve query",
 			c:                 eve,
 			cfg:               cfgSmall,
-			expectedUpstreams: authz.EmptyUSet(),
+			expectedUpstreams: core.EmptyUSet(),
 			expectedErr:       nil,
 		},
 	}
