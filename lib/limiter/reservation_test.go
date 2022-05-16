@@ -19,6 +19,37 @@ func requireAllCountsZero(t *testing.T, r *UniformlyBoundedClientReserver) {
 	}
 }
 
+func TestUniformlyBoundedClientReserverClientReleasesFictitiousReservation(t *testing.T) {
+	var maxReservationsPerClient int64 = 1
+	rsvr := NewUniformlyBoundedClientReserver(maxReservationsPerClient)
+
+	alice := DummyClientID("alice")
+	ctx := context.Background()
+
+	err := rsvr.ReleaseReservation(ctx, alice)
+	require.ErrorIs(t, err, NoReservationExists)
+}
+
+func TestUniformlyBoundedClientReserverReleasesMapItems(t *testing.T) {
+	// If we don't delete map items when their reservation count drops to
+	// zero, then for usage patterns where a very large number of clients
+	// each acquire and release a small number of reservations, the memory
+	// required for our map will be unbounded.
+
+	var maxReservationsPerClient int64 = 1
+	rsvr := NewUniformlyBoundedClientReserver(maxReservationsPerClient)
+
+	alice := DummyClientID("alice")
+	ctx := context.Background()
+
+	err := rsvr.TryReserve(ctx, alice)
+	require.NoError(t, err)
+	err = rsvr.ReleaseReservation(ctx, alice)
+	require.NoError(t, err)
+
+	require.Zero(t, len(rsvr.resByClient))
+}
+
 func TestUniformlyBoundedClientReserverSingleSequentialClient(t *testing.T) {
 	// simple scenario of sequential reservation attempts by single client
 
