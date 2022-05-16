@@ -3,11 +3,11 @@ package limiter
 import (
 	"context"
 	"sync"
-	"tcplb/lib/authz"
+	"tcplb/lib/core"
 )
 
 type ClientReservation struct {
-	c authz.ClientID
+	c core.ClientID
 }
 
 // MaxReservationsExceeded is the error returned by ClientReserver
@@ -33,7 +33,7 @@ type ClientReserver interface {
 	//
 	// Implementations of ClientReserver are discouraged from blocking until
 	// a reservation becomes available.
-	TryReserve(ctx context.Context, c authz.ClientID) (ClientReservation, error)
+	TryReserve(ctx context.Context, c core.ClientID) (ClientReservation, error)
 
 	// ReleaseReservation releases a reservation that was previously acquired
 	// by TryReserve.
@@ -44,7 +44,7 @@ type ClientReserver interface {
 // to acquire arbitrarily many reservations without constraint.
 type UnboundedClientReserver struct{}
 
-func (u UnboundedClientReserver) TryReserve(ctx context.Context, c authz.ClientID) (ClientReservation, error) {
+func (u UnboundedClientReserver) TryReserve(ctx context.Context, c core.ClientID) (ClientReservation, error) {
 	return ClientReservation{c: c}, nil
 }
 
@@ -84,13 +84,13 @@ type UniformlyBoundedClientReserver struct {
 	//
 	// See also: https://github.com/golang/go/issues/21035
 	mu          sync.Mutex
-	resByClient map[authz.ClientID]int64
+	resByClient map[core.ClientID]int64
 }
 
 func NewUniformlyBoundedClientReserver(n int64) *UniformlyBoundedClientReserver {
 	return &UniformlyBoundedClientReserver{
 		MaxReservationsPerClient: n,
-		resByClient:              make(map[authz.ClientID]int64),
+		resByClient:              make(map[core.ClientID]int64),
 	}
 }
 
@@ -101,7 +101,7 @@ func (b *UniformlyBoundedClientReserver) sanityCheck(n int64) {
 	}
 }
 
-func (b *UniformlyBoundedClientReserver) TryReserve(ctx context.Context, c authz.ClientID) (ClientReservation, error) {
+func (b *UniformlyBoundedClientReserver) TryReserve(ctx context.Context, c core.ClientID) (ClientReservation, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	n := b.resByClient[c]
