@@ -2,6 +2,7 @@ package limiter
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"tcplb/lib/core"
 )
@@ -13,11 +14,7 @@ type ClientReservation struct {
 // MaxReservationsExceeded is the error returned by ClientReserver
 // when an attempted reservation fails because the client has too
 // many reservations.
-var MaxReservationsExceeded error = maxReservationsExceededError{}
-
-type maxReservationsExceededError struct{}
-
-func (maxReservationsExceededError) Error() string { return "maximum client reservations exceeded" }
+var MaxReservationsExceeded = errors.New("maximum client reservations exceeded")
 
 // ClientReserver represents an object that can acquire and release
 // reservations for clients.
