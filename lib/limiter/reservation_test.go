@@ -28,32 +28,31 @@ func TestUniformlyBoundedClientReserverSingleSequentialClient(t *testing.T) {
 	alice := DummyClientID("alice")
 	ctx := context.Background()
 
-	r1, err := rsvr.TryReserve(ctx, alice)
+	err := rsvr.TryReserve(ctx, alice)
 	require.NoError(t, err)
 
-	r2, err := rsvr.TryReserve(ctx, alice)
+	err = rsvr.TryReserve(ctx, alice)
 	require.NoError(t, err)
 
-	r3, err := rsvr.TryReserve(ctx, alice)
+	err = rsvr.TryReserve(ctx, alice)
 	require.NoError(t, err)
 
-	r4, err := rsvr.TryReserve(ctx, alice)
+	err = rsvr.TryReserve(ctx, alice)
 	require.Equal(t, MaxReservationsExceeded, err)
-	require.Equal(t, ClientReservation{}, r4)
 
-	err = rsvr.ReleaseReservation(ctx, r1)
+	err = rsvr.ReleaseReservation(ctx, alice)
 	require.NoError(t, err)
 
-	r5, err := rsvr.TryReserve(ctx, alice)
+	err = rsvr.TryReserve(ctx, alice)
 	require.NoError(t, err)
 
-	err = rsvr.ReleaseReservation(ctx, r3)
+	err = rsvr.ReleaseReservation(ctx, alice)
 	require.NoError(t, err)
 
-	err = rsvr.ReleaseReservation(ctx, r2)
+	err = rsvr.ReleaseReservation(ctx, alice)
 	require.NoError(t, err)
 
-	err = rsvr.ReleaseReservation(ctx, r5)
+	err = rsvr.ReleaseReservation(ctx, alice)
 	require.NoError(t, err)
 
 	requireAllCountsZero(t, rsvr)
@@ -69,42 +68,40 @@ func TestUniformlyBoundedClientReserverMultipleSequentialClients(t *testing.T) {
 	bob := DummyClientID("bob")
 	ctx := context.Background()
 
-	rb1, err := rsvr.TryReserve(ctx, bob)
+	err := rsvr.TryReserve(ctx, bob)
 	require.NoError(t, err)
 
-	rb2, err := rsvr.TryReserve(ctx, bob)
+	err = rsvr.TryReserve(ctx, bob)
 	require.NoError(t, err)
 
-	ra1, err := rsvr.TryReserve(ctx, alice)
+	err = rsvr.TryReserve(ctx, alice)
 	require.NoError(t, err)
 
-	err = rsvr.ReleaseReservation(ctx, rb1)
+	err = rsvr.ReleaseReservation(ctx, bob)
 	require.NoError(t, err)
 
-	ra2, err := rsvr.TryReserve(ctx, alice)
+	err = rsvr.TryReserve(ctx, alice)
 	require.NoError(t, err)
 
-	rb3, err := rsvr.TryReserve(ctx, bob)
+	err = rsvr.TryReserve(ctx, bob)
 	require.NoError(t, err)
 
-	ra3, err := rsvr.TryReserve(ctx, alice)
+	err = rsvr.TryReserve(ctx, alice)
 	require.Equal(t, MaxReservationsExceeded, err)
-	require.Equal(t, ClientReservation{}, ra3)
 
-	err = rsvr.ReleaseReservation(ctx, ra2)
+	err = rsvr.ReleaseReservation(ctx, alice)
 	require.NoError(t, err)
 
-	rb4, err := rsvr.TryReserve(ctx, bob)
+	err = rsvr.TryReserve(ctx, bob)
 	require.Equal(t, MaxReservationsExceeded, err)
-	require.Equal(t, ClientReservation{}, rb4)
 
-	err = rsvr.ReleaseReservation(ctx, ra1)
+	err = rsvr.ReleaseReservation(ctx, alice)
 	require.NoError(t, err)
 
-	err = rsvr.ReleaseReservation(ctx, rb2)
+	err = rsvr.ReleaseReservation(ctx, bob)
 	require.NoError(t, err)
 
-	err = rsvr.ReleaseReservation(ctx, rb3)
+	err = rsvr.ReleaseReservation(ctx, bob)
 	require.NoError(t, err)
 
 	requireAllCountsZero(t, rsvr)
@@ -155,7 +152,7 @@ func TestUniformlyBoundedClientReserverConcurrent(t *testing.T) {
 		ctx := context.Background()
 
 		for i := int64(0); i < iters; i++ {
-			r, err := rsvr.TryReserve(ctx, c)
+			err := rsvr.TryReserve(ctx, c)
 			switch err {
 			case nil:
 				s.Reserved += 1
@@ -170,7 +167,7 @@ func TestUniformlyBoundedClientReserverConcurrent(t *testing.T) {
 			if err != nil {
 				continue
 			}
-			err = rsvr.ReleaseReservation(ctx, r)
+			err = rsvr.ReleaseReservation(ctx, c)
 			if err != nil {
 				s.ReleaseErrors += 1
 			}
