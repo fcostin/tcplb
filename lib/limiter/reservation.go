@@ -106,16 +106,12 @@ func (b *UniformlyBoundedClientReserver) TryReserve(ctx context.Context, c core.
 	defer b.mu.Unlock()
 	n := b.resByClient[c]
 	b.sanityCheck(n)
-	var r ClientReservation
-	var err error
-	if n < b.MaxReservationsPerClient {
-		b.resByClient[c] = n + 1
-		r = ClientReservation{c: c}
-	} else {
-		err = MaxReservationsExceeded
+	if n >= b.MaxReservationsPerClient {
+		return ClientReservation{}, MaxReservationsExceeded
 	}
+	b.resByClient[c] = n + 1
 	b.sanityCheck(n)
-	return r, err
+	return ClientReservation{c: c}, nil
 }
 
 func (b *UniformlyBoundedClientReserver) ReleaseReservation(ctx context.Context, r ClientReservation) error {
