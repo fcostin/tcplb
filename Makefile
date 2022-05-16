@@ -2,7 +2,7 @@ all:	test build
 .PHONY: all
 
 build:
-	CGO_ENABLED=0 go build -o dist/tcplb ./cmd/tcplb/...
+	CGO_ENABLED=0 go build -o dist/tcplb ./cmd/tcplb
 .PHONY: all
 
 test:
