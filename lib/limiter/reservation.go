@@ -50,17 +50,8 @@ type UniformlyBoundedClientReserver struct {
 	// level reserver at all, at the cost of creating a new parameter (fixed number
 	// of sub reservers) to tune to usage patterns.
 	//
-	// Alas, unlike various boring programming languages
-	//  https://doc.rust-lang.org/std/hash/index.html
-	//  https://docs.python.org/3/library/functions.html#hash
-	//  https://docs.oracle.com/javase/8/docs/api/java/lang/Object.html#hashCode--
-	// go doesn't provide a
-	// generic hash function for the application programmer to lean on. We could
-	// work around that by replacing ClientID with a concrete type or adding a
-	// Hash() uint64 method to the ClientID interface.
-	//
-	//
 	// See also: https://github.com/golang/go/issues/21035
+	// See also: https://pkg.go.dev/crypto/sha256
 	mu          sync.Mutex
 	resByClient map[core.ClientID]int64
 }
