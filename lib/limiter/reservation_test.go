@@ -23,7 +23,7 @@ func TestUniformlyBoundedClientReserverSingleSequentialClient(t *testing.T) {
 	// simple scenario of sequential reservation attempts by single client
 
 	var maxReservationsPerClient int64 = 3
-	var rsvr ClientReserver = NewUniformlyBoundedClientReserver(maxReservationsPerClient)
+	rsvr := NewUniformlyBoundedClientReserver(maxReservationsPerClient)
 
 	alice := DummyClientID("alice")
 	ctx := context.Background()
@@ -56,14 +56,14 @@ func TestUniformlyBoundedClientReserverSingleSequentialClient(t *testing.T) {
 	err = rsvr.ReleaseReservation(ctx, r5)
 	require.NoError(t, err)
 
-	requireAllCountsZero(t, rsvr.(*UniformlyBoundedClientReserver))
+	requireAllCountsZero(t, rsvr)
 }
 
 func TestUniformlyBoundedClientReserverMultipleSequentialClients(t *testing.T) {
 	// simple scenario of sequential reservation attempts by two clients
 
 	var maxReservationsPerClient int64 = 2
-	var rsvr ClientReserver = NewUniformlyBoundedClientReserver(maxReservationsPerClient)
+	rsvr := NewUniformlyBoundedClientReserver(maxReservationsPerClient)
 
 	alice := DummyClientID("alice")
 	bob := DummyClientID("bob")
@@ -107,7 +107,7 @@ func TestUniformlyBoundedClientReserverMultipleSequentialClients(t *testing.T) {
 	err = rsvr.ReleaseReservation(ctx, rb3)
 	require.NoError(t, err)
 
-	requireAllCountsZero(t, rsvr.(*UniformlyBoundedClientReserver))
+	requireAllCountsZero(t, rsvr)
 }
 
 func TestUniformlyBoundedClientReserverConcurrent(t *testing.T) {
@@ -123,7 +123,7 @@ func TestUniformlyBoundedClientReserverConcurrent(t *testing.T) {
 
 	// create a reserver with some per client limit
 	var maxReservationsPerClient int64 = 5
-	var rsvr ClientReserver = NewUniformlyBoundedClientReserver(maxReservationsPerClient)
+	rsvr := NewUniformlyBoundedClientReserver(maxReservationsPerClient)
 
 	// two clients, alice and bob
 	alice := DummyClientID("alice")
@@ -148,7 +148,7 @@ func TestUniformlyBoundedClientReserverConcurrent(t *testing.T) {
 
 	stats := make(chan workerStats, int64(len(clients))*workersPerClient)
 
-	worker := func(c core.ClientID, iters int64, rsvr ClientReserver, out chan<- workerStats) {
+	worker := func(c core.ClientID, iters int64, rsvr *UniformlyBoundedClientReserver, out chan<- workerStats) {
 		defer wg.Done()
 		var s workerStats
 		s.Client = c
