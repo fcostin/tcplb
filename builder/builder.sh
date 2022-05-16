@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -e
+set -eu
 
 IMAGE_NAME=tcplb
 IMAGE_TAG=dev
