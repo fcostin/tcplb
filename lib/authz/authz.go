@@ -19,7 +19,7 @@ type UpstreamGroup struct {
 type Config struct {
 	GroupsByClientID         map[core.ClientID][]Group
 	UpstreamGroupsByGroup    map[Group][]UpstreamGroup
-	UpstreamsByUpstreamGroup map[UpstreamGroup]core.USet
+	UpstreamsByUpstreamGroup map[UpstreamGroup]core.UpstreamSet
 }
 
 // Authorizer is a static forwarding authorization policy that
@@ -39,11 +39,11 @@ func NewStaticAuthorizer(config Config) *Authorizer {
 	}
 }
 
-// AuthorizedUpstreams returns an USet of upstreams that the ClientID c
+// AuthorizedUpstreams returns an UpstreamSet of upstreams that the ClientID c
 // is authorized to access. If c is not authorized to access any upstreams,
-// implementations should return an empty USet and nil.
-func (a *Authorizer) AuthorizedUpstreams(ctx context.Context, c core.ClientID) (core.USet, error) {
-	result := core.EmptyUSet()
+// implementations should return an empty UpstreamSet and nil.
+func (a *Authorizer) AuthorizedUpstreams(ctx context.Context, c core.ClientID) (core.UpstreamSet, error) {
+	result := core.EmptyUpstreamSet()
 	groups, exists := a.config.GroupsByClientID[c]
 	if !exists {
 		return result, nil
