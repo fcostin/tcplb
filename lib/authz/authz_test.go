@@ -49,9 +49,9 @@ func TestAuthorizer(t *testing.T) {
 			beta:  {worker},
 			admin: {web, worker},
 		},
-		UpstreamsByUpstreamGroup: map[UpstreamGroup]core.USet{
-			web:    core.NewUSet(web1, web2),
-			worker: core.NewUSet(worker1, worker2),
+		UpstreamsByUpstreamGroup: map[UpstreamGroup]core.UpstreamSet{
+			web:    core.NewUpstreamSet(web1, web2),
+			worker: core.NewUpstreamSet(worker1, worker2),
 		},
 	}
 
@@ -59,43 +59,43 @@ func TestAuthorizer(t *testing.T) {
 		name              string
 		c                 core.ClientID
 		cfg               Config
-		expectedUpstreams core.USet
+		expectedUpstreams core.UpstreamSet
 	}{
 		{
 			name:              "zero alice query",
 			c:                 alice,
 			cfg:               cfgZero,
-			expectedUpstreams: core.EmptyUSet(),
+			expectedUpstreams: core.EmptyUpstreamSet(),
 		},
 		{
 			name:              "small alice query",
 			c:                 alice,
 			cfg:               cfgSmall,
-			expectedUpstreams: core.NewUSet(web1, web2, worker1, worker2),
+			expectedUpstreams: core.NewUpstreamSet(web1, web2, worker1, worker2),
 		},
 		{
 			name:              "small bob query",
 			c:                 bob,
 			cfg:               cfgSmall,
-			expectedUpstreams: core.NewUSet(web1, web2, worker1, worker2),
+			expectedUpstreams: core.NewUpstreamSet(web1, web2, worker1, worker2),
 		},
 		{
 			name:              "small cindy query",
 			c:                 cindy,
 			cfg:               cfgSmall,
-			expectedUpstreams: core.NewUSet(worker1, worker2),
+			expectedUpstreams: core.NewUpstreamSet(worker1, worker2),
 		},
 		{
 			name:              "small dinesh query",
 			c:                 dinesh,
 			cfg:               cfgSmall,
-			expectedUpstreams: core.NewUSet(web1, web2),
+			expectedUpstreams: core.NewUpstreamSet(web1, web2),
 		},
 		{
 			name:              "small eve query",
 			c:                 eve,
 			cfg:               cfgSmall,
-			expectedUpstreams: core.EmptyUSet(),
+			expectedUpstreams: core.EmptyUpstreamSet(),
 		},
 	}
 
