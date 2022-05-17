@@ -12,10 +12,8 @@ func DummyClientID(key string) core.ClientID {
 	return core.ClientID{Namespace: "authz_test", Key: key}
 }
 
-type DummyUpstream string
-
-func (u DummyUpstream) Name() string {
-	return string(u)
+func DummyUpstream(key string) core.Upstream {
+	return core.Upstream{Network: "authz_test_network", Address: key}
 }
 
 func TestAuthorizer(t *testing.T) {

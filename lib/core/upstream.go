@@ -1,10 +1,9 @@
 package core
 
 // Upstream represents an upstream that clients can be forwarded to.
-// Implementations must support comparison
-// operators (==, !=) and have value semantics.
-type Upstream interface {
-	Name() string // name of the upstream (unique amongst all upstreams)
+type Upstream struct {
+	Network string
+	Address string
 }
 
 // USet represents a set of Upstreams
