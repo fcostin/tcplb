@@ -9,7 +9,9 @@ import (
 	"time"
 )
 
-type DummyClientID string
+func DummyClientID(key string) core.ClientID {
+	return core.ClientID{Namespace: "reservation_test", Key: key}
+}
 
 func requireAllCountsZero(t *testing.T, r *UniformlyBoundedClientReserver) {
 	r.mu.Lock()
@@ -157,7 +159,7 @@ func TestUniformlyBoundedClientReserverConcurrent(t *testing.T) {
 	alice := DummyClientID("alice")
 	bob := DummyClientID("bob")
 
-	clients := []DummyClientID{alice, bob}
+	clients := []core.ClientID{alice, bob}
 
 	type workerStats struct {
 		Client        core.ClientID

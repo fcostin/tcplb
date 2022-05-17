@@ -8,7 +8,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type DummyClientID string
+func DummyClientID(key string) core.ClientID {
+	return core.ClientID{Namespace: "authz_test", Key: key}
+}
 
 type DummyUpstream string
 
