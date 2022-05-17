@@ -60,49 +60,42 @@ func TestAuthorizer(t *testing.T) {
 		c                 core.ClientID
 		cfg               Config
 		expectedUpstreams core.USet
-		expectedErr       error
 	}{
 		{
 			name:              "zero alice query",
 			c:                 alice,
 			cfg:               cfgZero,
 			expectedUpstreams: core.EmptyUSet(),
-			expectedErr:       nil,
 		},
 		{
 			name:              "small alice query",
 			c:                 alice,
 			cfg:               cfgSmall,
 			expectedUpstreams: core.NewUSet(web1, web2, worker1, worker2),
-			expectedErr:       nil,
 		},
 		{
 			name:              "small bob query",
 			c:                 bob,
 			cfg:               cfgSmall,
 			expectedUpstreams: core.NewUSet(web1, web2, worker1, worker2),
-			expectedErr:       nil,
 		},
 		{
 			name:              "small cindy query",
 			c:                 cindy,
 			cfg:               cfgSmall,
 			expectedUpstreams: core.NewUSet(worker1, worker2),
-			expectedErr:       nil,
 		},
 		{
 			name:              "small dinesh query",
 			c:                 dinesh,
 			cfg:               cfgSmall,
 			expectedUpstreams: core.NewUSet(web1, web2),
-			expectedErr:       nil,
 		},
 		{
 			name:              "small eve query",
 			c:                 eve,
 			cfg:               cfgSmall,
 			expectedUpstreams: core.EmptyUSet(),
-			expectedErr:       nil,
 		},
 	}
 
@@ -113,7 +106,7 @@ func TestAuthorizer(t *testing.T) {
 			ctx := context.Background()
 			upstreams, err := a.AuthorizedUpstreams(ctx, s.c)
 
-			require.Equal(t, s.expectedErr, err)
+			require.NoError(t, err)
 			require.Equal(t, s.expectedUpstreams, upstreams)
 		})
 	}
