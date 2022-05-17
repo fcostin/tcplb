@@ -92,3 +92,28 @@ func (s *stdlibLogShim) Error(record *LogRecord) {
 func GetDefaultLogger() Logger {
 	return &stdlibLogShim{}
 }
+
+// RecordingLogger captures all logged events in memory.
+// It is designed for use as a test fixture.
+type RecordingLogger struct {
+	Events []Event
+}
+
+type Event struct {
+	Level string
+	*LogRecord
+}
+
+func (l *RecordingLogger) Info(record *LogRecord) {
+	l.Events = append(l.Events, Event{Level: "info", LogRecord: record})
+}
+
+func (l *RecordingLogger) Warn(record *LogRecord) {
+	l.Events = append(l.Events, Event{Level: "warn", LogRecord: record})
+}
+
+func (l *RecordingLogger) Error(record *LogRecord) {
+	l.Events = append(l.Events, Event{Level: "error", LogRecord: record})
+}
+
+var _ Logger = (*RecordingLogger)(nil) // type check
