@@ -26,10 +26,10 @@ func NewUpstreamSet(upstreams ...Upstream) UpstreamSet {
 // Union returns a new UpstreamSet that is the union of the input UpstreamSets
 func Union(lhs, rhs UpstreamSet) UpstreamSet {
 	result := EmptyUpstreamSet()
-	for k, _ := range lhs {
+	for k := range lhs {
 		result[k] = struct{}{}
 	}
-	for k, _ := range rhs {
+	for k := range rhs {
 		result[k] = struct{}{}
 	}
 	return result
@@ -38,7 +38,7 @@ func Union(lhs, rhs UpstreamSet) UpstreamSet {
 // UnionUpdate updates the input acc UpstreamSet in-place by taking the union
 // with the given rhs UpstreamSet. The modified input acc is returned.
 func UnionUpdate(acc, rhs UpstreamSet) UpstreamSet {
-	for k, _ := range rhs {
+	for k := range rhs {
 		acc[k] = struct{}{}
 	}
 	return acc
