@@ -150,12 +150,29 @@ func serve(logger slog.Logger, cfg *Config) error {
 		return err
 	}
 
-	s := &forwarder.Server{
+	// Compose stack of connection handlers. They are defined
+	// in order from innermost to outermost.
+	forwardingHandler := &forwarder.ForwardingHandler{
+		Logger:    logger,
+		Dialer:    dialer,
+		Forwarder: fwder,
+	}
+	authzHandler := &forwarder.AuthorizedUpstreamsHandler{
 		Logger:     logger,
-		Reserver:   reserver,
 		Authorizer: authorizer,
-		Dialer:     dialer,
-		Forwarder:  fwder,
+		Inner:      forwardingHandler,
+	}
+	rateLimitingHandler := &forwarder.RateLimitingHandler{
+		Logger:   logger,
+		Reserver: reserver,
+		Inner:    authzHandler,
+	}
+	recovererHandler := &forwarder.RecovererHandler{
+		Logger: logger,
+		Inner:  rateLimitingHandler,
+	}
+	baseHandler := &forwarder.ConnCloserHandler{
+		Inner: recovererHandler,
 	}
 
 	listener, err := net.Listen(cfg.ListenNetwork, cfg.ListenAddress)
@@ -182,14 +199,22 @@ func serve(logger slog.Logger, cfg *Config) error {
 			time.Sleep(defaultAcceptErrorCooldownDuration)
 			continue
 		}
+		// TODO refactor to remove this AuthenticatedConn abstraction,
+		// instead pass the clientID in the context.
 		authenticatedClientConn, err := coerceIntoAuthenticatedConn(logger, clientConn)
 		if err != nil {
 			_ = clientConn.Close()
 			return err
 		}
-		// Handle is responsible for closing authenticatedClientConn
-		ctx := context.Background() // TODO consider adding cancel
-		go s.Handle(ctx, authenticatedClientConn)
+		clientId, err := authenticatedClientConn.GetClientID()
+		if err != nil {
+			_ = clientConn.Close()
+			return err
+		}
+		parentCtx := context.Background() // TODO consider adding cancel
+		ctx := forwarder.NewContextWithClientID(parentCtx, clientId)
+		// baseHandler.Handle is responsible for closing authenticatedClientConn
+		go baseHandler.Handle(ctx, authenticatedClientConn)
 	}
 	// Unreachable.
 }
