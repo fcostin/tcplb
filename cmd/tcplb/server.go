@@ -77,7 +77,9 @@ func makeAuthorizerFromConfig(cfg *Config) (forwarder.Authorizer, error) {
 // - it doesn't attempt to balance load
 // - it doesn't try alternative upstreams if one attempt fails
 // - it doesn't learn anything
-type IdiotDialer struct{}
+type IdiotDialer struct {
+	Logger slog.Logger
+}
 
 func (d IdiotDialer) DialBestUpstream(ctx context.Context, candidates core.UpstreamSet) (core.Upstream, forwarder.DuplexConn, error) {
 	for c := range candidates {
@@ -89,6 +91,7 @@ func (d IdiotDialer) DialBestUpstream(ctx context.Context, candidates core.Upstr
 		case *net.TCPConn:
 			return c, upstreamConn, nil
 		default:
+			d.Logger.Error(&slog.LogRecord{Msg: "upstreamConn has unsupported type, closing it"})
 			_ = conn.Close()
 			break
 		}
@@ -96,9 +99,9 @@ func (d IdiotDialer) DialBestUpstream(ctx context.Context, candidates core.Upstr
 	return core.Upstream{}, nil, errors.New("idiot dialer failed to dial")
 }
 
-func makeDialerFromConfig(cfg *Config) (forwarder.BestUpstreamDialer, error) {
+func makeDialerFromConfig(cfg *Config, logger slog.Logger) (forwarder.BestUpstreamDialer, error) {
 	// TODO FIXME replace with something better
-	return IdiotDialer{}, nil
+	return IdiotDialer{Logger: logger}, nil
 }
 
 func makeForwarderFromConfig(cfg *Config) (forwarder.Forwarder, error) {
@@ -138,7 +141,7 @@ func serve(logger slog.Logger, cfg *Config) error {
 		return err
 	}
 
-	dialer, err := makeDialerFromConfig(cfg)
+	dialer, err := makeDialerFromConfig(cfg, logger)
 	if err != nil {
 		logger.Error(&slog.LogRecord{Msg: "Dialer configuration error", Error: err})
 		return err
