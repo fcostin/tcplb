@@ -79,9 +79,10 @@ func (h alwaysPanicHandler) Handle(ctx context.Context, conn AuthenticatedConn) 
 func TestRecovererHandlerLogsPanics(t *testing.T) {
 	logger := &slog.RecordingLogger{}
 
+	thePanicValue := "oh no!"
 	h := &RecovererHandler{
 		Logger: logger,
-		Inner:  alwaysPanicHandler{PanicValue: "oh no!"},
+		Inner:  alwaysPanicHandler{PanicValue: thePanicValue},
 	}
 
 	ctx := context.Background()
@@ -89,9 +90,15 @@ func TestRecovererHandlerLogsPanics(t *testing.T) {
 
 	h.Handle(ctx, conn)
 
-	require.Len(t, logger.Events, 1)
-	event := logger.Events[0]
-	require.Equal(t, "error", event.Level)
-	require.Equal(t, "RecovererHandler: Unexpected panic!", event.Msg)
-	require.Equal(t, "oh no!", event.Details)
+	expectedPanicLogCount := 1
+	actualPanicLogCount := 0
+	for _, event := range logger.Events {
+		if event.Msg == RecovererUnexpectedPanicMessage {
+			actualPanicLogCount++
+			require.Equal(t, slog.ErrorLevel, event.Level)
+			require.Equal(t, thePanicValue, event.Details)
+			require.Greater(t, len(event.StackTrace), 0)
+		}
+	}
+	require.Equal(t, expectedPanicLogCount, actualPanicLogCount)
 }
