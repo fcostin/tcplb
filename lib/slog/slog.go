@@ -11,6 +11,12 @@ import (
 	"tcplb/lib/core"
 )
 
+const (
+	InfoLevel  = "info"
+	WarnLevel  = "warn"
+	ErrorLevel = "error"
+)
+
 // LogRecord holds data for a single server log record.
 type LogRecord struct {
 	Msg        string         `json:"msg,omitempty"`        // Msg is an optional log message
@@ -77,15 +83,15 @@ func logRecordAsSemiJSON(level string, record *LogRecord) {
 }
 
 func (s *stdlibLogShim) Info(record *LogRecord) {
-	logRecordAsSemiJSON("info", record)
+	logRecordAsSemiJSON(InfoLevel, record)
 }
 
 func (s *stdlibLogShim) Warn(record *LogRecord) {
-	logRecordAsSemiJSON("warn", record)
+	logRecordAsSemiJSON(WarnLevel, record)
 }
 
 func (s *stdlibLogShim) Error(record *LogRecord) {
-	logRecordAsSemiJSON("error", record)
+	logRecordAsSemiJSON(ErrorLevel, record)
 }
 
 // GetDefaultLogger returns the default Logger.
@@ -105,15 +111,15 @@ type Event struct {
 }
 
 func (l *RecordingLogger) Info(record *LogRecord) {
-	l.Events = append(l.Events, Event{Level: "info", LogRecord: record})
+	l.Events = append(l.Events, Event{Level: InfoLevel, LogRecord: record})
 }
 
 func (l *RecordingLogger) Warn(record *LogRecord) {
-	l.Events = append(l.Events, Event{Level: "warn", LogRecord: record})
+	l.Events = append(l.Events, Event{Level: WarnLevel, LogRecord: record})
 }
 
 func (l *RecordingLogger) Error(record *LogRecord) {
-	l.Events = append(l.Events, Event{Level: "error", LogRecord: record})
+	l.Events = append(l.Events, Event{Level: ErrorLevel, LogRecord: record})
 }
 
 var _ Logger = (*RecordingLogger)(nil) // type check

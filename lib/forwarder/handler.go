@@ -8,6 +8,10 @@ import (
 	"tcplb/lib/slog"
 )
 
+const (
+	RecovererUnexpectedPanicMessage = "RecovererHandler: Unexpected panic!"
+)
+
 type clientIdContextKeyType struct{}
 type upstreamsContextKeyType struct{}
 
@@ -70,7 +74,7 @@ func (h *RecovererHandler) Handle(ctx context.Context, conn AuthenticatedConn) {
 			return
 		}
 		h.Logger.Error(&slog.LogRecord{
-			Msg:        "RecovererHandler: Unexpected panic!",
+			Msg:        RecovererUnexpectedPanicMessage,
 			Details:    panicValue,
 			StackTrace: string(debug.Stack()),
 		})
