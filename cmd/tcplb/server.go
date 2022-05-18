@@ -1,12 +1,12 @@
 package main
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net"
 	"tcplb/lib/authz"
 	"tcplb/lib/core"
+	"tcplb/lib/dialer"
 	"tcplb/lib/forwarder"
 	"tcplb/lib/limiter"
 	"tcplb/lib/slog"
@@ -15,6 +15,7 @@ import (
 
 const (
 	defaultAcceptErrorCooldownDuration = time.Second
+	defaultDialerTimeout               = 15 * time.Second
 	defaultUpstreamNetwork             = "tcp"
 	defaultListenNetwork               = "tcp"
 	defaultListenAddress               = "0.0.0.0:4321"
@@ -67,37 +68,14 @@ func makeAuthorizerFromConfig(cfg *Config) (forwarder.Authorizer, error) {
 	return authz.NewStaticAuthorizer(authzCfg), nil
 }
 
-// PlaceholderDialer attempts to dial an arbitrary candidate and gives up if that fails.
-// This is implementation has various issues:
-// - no timeout
-// - it doesn't attempt to balance load
-// - it doesn't try alternative upstreams if one attempt fails
-// - it doesn't learn anything
-type PlaceholderDialer struct {
-	Logger slog.Logger
-}
-
-func (d PlaceholderDialer) DialBestUpstream(ctx context.Context, candidates core.UpstreamSet) (core.Upstream, forwarder.DuplexConn, error) {
-	for c := range candidates {
-		conn, err := net.Dial(c.Network, c.Address)
-		if err != nil {
-			return core.Upstream{}, nil, err
-		}
-		switch upstreamConn := conn.(type) {
-		case *net.TCPConn:
-			return c, upstreamConn, nil
-		default:
-			d.Logger.Error(&slog.LogRecord{Msg: "upstreamConn has unsupported type, closing it"})
-			_ = conn.Close()
-			break
-		}
-	}
-	return core.Upstream{}, nil, errors.New("PlaceholderDialer failed to dial")
-}
-
 func makeDialerFromConfig(cfg *Config, logger slog.Logger) (forwarder.BestUpstreamDialer, error) {
-	// TODO FIXME replace with something better
-	return PlaceholderDialer{Logger: logger}, nil
+	dialer := &dialer.RetryDialer{
+		Logger:      logger,
+		Timeout:     defaultDialerTimeout,
+		Policy:      dialer.PlaceholderDialPolicy{}, // TODO FIXME replace PlaceholderDialPolicy with something better
+		InnerDialer: dialer.SimpleUpstreamDialer{},
+	}
+	return dialer, nil
 }
 
 func makeForwarderFromConfig(cfg *Config) (forwarder.Forwarder, error) {
