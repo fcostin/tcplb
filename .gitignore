@@ -1,3 +1,4 @@
 /.idea
 /dist/tcplb
 /tool/generate_cert
+/testbed/**/*.pem

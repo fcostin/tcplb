@@ -1,3 +1,6 @@
+CERTKEY_RECIPES := $(shell find testbed -name 'certkey.recipe')
+KEYS := $(addsuffix key.pem,$(dir $(CERTKEY_RECIPES)))
+
 all:	test build
 .PHONY: all
 
@@ -13,5 +16,10 @@ containerised_build:
 	./builder/builder.sh
 .PHONY: containerised_build
 
-tool/generate_cert:	tool/generate_cert.go
-	go build -o $@ ./$^
+allkeys:	$(KEYS)
+.PHONY: allkeys
+
+%/key.pem:		tool/generate_cert %/certkey.recipe
+	$< -common-name $* -out-key $@ -out-cert $(addsuffix cert.pem,$(dir $@)) $(shell cat $(word 2,$^))
+	# display the cert contents
+	openssl x509 -inform pem -in $(addsuffix cert.pem,$(dir $@)) -noout -text
