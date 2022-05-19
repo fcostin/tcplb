@@ -12,3 +12,6 @@ test:
 containerised_build:
 	./builder/builder.sh
 .PHONY: containerised_build
+
+tool/generate_cert:	tool/generate_cert.go
+	go build -o $@ ./$^
