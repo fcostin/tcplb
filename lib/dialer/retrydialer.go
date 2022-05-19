@@ -90,11 +90,12 @@ func (d *RetryDialer) DialBestUpstream(ctx context.Context, candidates core.Upst
 	for {
 		upstream, err := d.Policy.ChooseBestUpstream(candidates)
 		if err != nil {
-			// TODO could sleep here (honouring dialCtx timeout) to give policy chance to change its mind
+			// TODO instead of aborting, we could pause here
+			// (honouring dialCtx timeout) to give policy chance to change its mind.
 			return core.Upstream{}, nil, err
 		}
 		// TODO if policy chose an upstream we tried earlier this call, we could also
-		// pause here with an exponential backoff.
+		// pause here (honouring dialCtx timeout) with an exponential backoff.
 
 		conn, err := d.InnerDialer.DialUpstream(dialCtx, upstream)
 		if err != nil {
