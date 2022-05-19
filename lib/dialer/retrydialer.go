@@ -112,9 +112,8 @@ func (d *RetryDialer) DialBestUpstream(ctx context.Context, candidates core.Upst
 		// Wrap & instrument the returned conn to inform the DialPolicy on conn Close.
 		wrappedConn := &CloseNotifyingDuplexConn{
 			DuplexConn: conn,
-			OnClose: func() {
-				d.Policy.ConnectionClosed(upstream)
-			},
+			upstream:   upstream,
+			policy:     d.Policy,
 		}
 		return upstream, wrappedConn, nil
 	}
@@ -122,10 +121,11 @@ func (d *RetryDialer) DialBestUpstream(ctx context.Context, candidates core.Upst
 
 type CloseNotifyingDuplexConn struct {
 	forwarder.DuplexConn
-	OnClose func()
+	upstream core.Upstream
+	policy   DialPolicy
 }
 
 func (c *CloseNotifyingDuplexConn) Close() error {
-	defer c.OnClose()
+	defer c.policy.ConnectionClosed(c.upstream)
 	return c.DuplexConn.Close()
 }
