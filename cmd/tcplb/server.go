@@ -72,7 +72,7 @@ func makeDialerFromConfig(cfg *Config, logger slog.Logger) (forwarder.BestUpstre
 	dialer := &dialer.RetryDialer{
 		Logger:      logger,
 		Timeout:     defaultDialerTimeout,
-		Policy:      dialer.PlaceholderDialPolicy{}, // TODO FIXME replace PlaceholderDialPolicy with something better
+		Policy:      dialer.NewLeastConnectionDialPolicy(),
 		InnerDialer: dialer.SimpleUpstreamDialer{},
 	}
 	return dialer, nil

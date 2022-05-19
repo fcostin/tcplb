@@ -86,6 +86,7 @@ func (d *RetryDialer) DialBestUpstream(ctx context.Context, candidates core.Upst
 	// TODO use shorter timeout for each of n > 1 dial attempts?
 	dialCtx, cancel := context.WithTimeout(ctx, d.Timeout)
 	defer cancel()
+
 	for {
 		upstream, err := d.Policy.ChooseBestUpstream(candidates)
 		if err != nil {
@@ -104,6 +105,24 @@ func (d *RetryDialer) DialBestUpstream(ctx context.Context, candidates core.Upst
 			continue
 		}
 		d.Policy.DialSucceeded(upstream)
-		return upstream, conn, nil
+
+		// Wrap & instrument the returned conn to inform the DialPolicy on conn Close.
+		wrappedConn := &CloseNotifyingDuplexConn{
+			DuplexConn: conn,
+			OnClose: func() {
+				d.Policy.ConnectionClosed(upstream)
+			},
+		}
+		return upstream, wrappedConn, nil
 	}
+}
+
+type CloseNotifyingDuplexConn struct {
+	forwarder.DuplexConn
+	OnClose func()
+}
+
+func (c *CloseNotifyingDuplexConn) Close() error {
+	defer c.OnClose()
+	return c.DuplexConn.Close()
 }
