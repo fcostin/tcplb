@@ -8,6 +8,7 @@ import (
 	"net"
 	"tcplb/lib/core"
 	"tcplb/lib/forwarder"
+	"tcplb/lib/slog"
 	"testing"
 	"time"
 )
@@ -143,6 +144,7 @@ func TestRetryDialer_DialBestUpstream_Err_When_ChooseErr(t *testing.T) {
 	}
 	rd := &RetryDialer{
 		Policy: policy,
+		Logger: slog.VoidLogger{},
 	}
 
 	ctx := context.Background()
@@ -178,6 +180,7 @@ func TestRetryDialer_DialBestUpstream_Success_Close(t *testing.T) {
 				},
 			},
 		},
+		Logger: slog.VoidLogger{},
 	}
 
 	ctx := context.Background()
@@ -232,6 +235,7 @@ func TestRetryDialer_DialBestUpstream_Failure_Retry_Success_Close(t *testing.T) 
 				},
 			},
 		},
+		Logger: slog.VoidLogger{},
 	}
 
 	ctx := context.Background()
@@ -285,6 +289,7 @@ func TestRetryDialer_DialBestUpstream_Dial_Timeout(t *testing.T) {
 				},
 			},
 		},
+		Logger: slog.VoidLogger{},
 	}
 
 	ctx := context.Background()

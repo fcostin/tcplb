@@ -123,3 +123,14 @@ func (l *RecordingLogger) Error(record *LogRecord) {
 }
 
 var _ Logger = (*RecordingLogger)(nil) // type check
+
+// VoidLogger discards all logged records.
+type VoidLogger struct{}
+
+func (l VoidLogger) Info(record *LogRecord) {}
+
+func (l VoidLogger) Warn(record *LogRecord) {}
+
+func (l VoidLogger) Error(record *LogRecord) {}
+
+var _ Logger = (*VoidLogger)(nil) // type check

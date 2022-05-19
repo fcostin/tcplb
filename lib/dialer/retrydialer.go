@@ -97,13 +97,16 @@ func (d *RetryDialer) DialBestUpstream(ctx context.Context, candidates core.Upst
 		if err != nil {
 			// If we exceeded the dial timeout, then dialCtx.Err() is non-nil
 			if dialCtxErr := dialCtx.Err(); dialCtxErr != nil {
+				d.Logger.Warn(&slog.LogRecord{Msg: "dial timed out", Upstream: &upstream})
 				// We cannot infer much about upstream health in this scenario.
 				// Halt and indicate to caller that we timed out.
 				return core.Upstream{}, nil, dialCtxErr
 			}
+			d.Logger.Warn(&slog.LogRecord{Msg: "dial failed", Upstream: &upstream})
 			d.Policy.DialFailed(upstream, err)
 			continue
 		}
+		d.Logger.Info(&slog.LogRecord{Msg: "dial succeeded", Upstream: &upstream})
 		d.Policy.DialSucceeded(upstream)
 
 		// Wrap & instrument the returned conn to inform the DialPolicy on conn Close.
