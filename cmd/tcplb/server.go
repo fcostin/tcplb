@@ -71,17 +71,17 @@ func makeAuthorizerFromConfig(cfg *Config) (forwarder.Authorizer, error) {
 	return authz.NewStaticAuthorizer(authzCfg), nil
 }
 
-// IdiotDialer attempts to dial an arbitrary candidate and gives up if that fails.
-// This is a placeholder implementation with various issues:
+// PlaceholderDialer attempts to dial an arbitrary candidate and gives up if that fails.
+// This is implementation has various issues:
 // - no timeout
 // - it doesn't attempt to balance load
 // - it doesn't try alternative upstreams if one attempt fails
 // - it doesn't learn anything
-type IdiotDialer struct {
+type PlaceholderDialer struct {
 	Logger slog.Logger
 }
 
-func (d IdiotDialer) DialBestUpstream(ctx context.Context, candidates core.UpstreamSet) (core.Upstream, forwarder.DuplexConn, error) {
+func (d PlaceholderDialer) DialBestUpstream(ctx context.Context, candidates core.UpstreamSet) (core.Upstream, forwarder.DuplexConn, error) {
 	for c := range candidates {
 		conn, err := net.Dial(c.Network, c.Address)
 		if err != nil {
@@ -96,12 +96,12 @@ func (d IdiotDialer) DialBestUpstream(ctx context.Context, candidates core.Upstr
 			break
 		}
 	}
-	return core.Upstream{}, nil, errors.New("idiot dialer failed to dial")
+	return core.Upstream{}, nil, errors.New("PlaceholderDialer failed to dial")
 }
 
 func makeDialerFromConfig(cfg *Config, logger slog.Logger) (forwarder.BestUpstreamDialer, error) {
 	// TODO FIXME replace with something better
-	return IdiotDialer{Logger: logger}, nil
+	return PlaceholderDialer{Logger: logger}, nil
 }
 
 func makeForwarderFromConfig(cfg *Config) (forwarder.Forwarder, error) {
