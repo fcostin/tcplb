@@ -170,12 +170,8 @@ func serve(logger slog.Logger, cfg *Config) error {
 		Reserver: reserver,
 		Inner:    authzHandler,
 	}
-	recovererHandler := &forwarder.RecovererHandler{
-		Logger: logger,
-		Inner:  rateLimitingHandler,
-	}
 	baseHandler := &forwarder.ConnCloserHandler{
-		Inner: recovererHandler,
+		Inner: rateLimitingHandler,
 	}
 
 	listener, err := net.Listen(cfg.ListenNetwork, cfg.ListenAddress)
