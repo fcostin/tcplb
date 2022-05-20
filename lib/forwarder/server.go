@@ -2,9 +2,15 @@ package forwarder
 
 import (
 	"context"
+	"crypto/tls"
+	"errors"
 	"net"
 	"tcplb/lib/core"
+	"tcplb/lib/slog"
+	"time"
 )
+
+var ConnectionTypeUnsupported = errors.New("connection type unsupported")
 
 // CloseWriter represents something that can CloseWrite.
 //
@@ -18,17 +24,6 @@ type CloseWriter interface {
 type DuplexConn interface {
 	net.Conn
 	CloseWriter
-}
-
-// AuthenticatedConn represents an established authenticated
-// connection to a client.
-type AuthenticatedConn interface {
-	net.Conn
-	CloseWriter
-
-	// GetClientID attempts to extract the canonical ClientID representing
-	// the identity of an authenticated peer.
-	GetClientID() (core.ClientID, error)
 }
 
 // ClientReserver represents an entity that can limit "reservations"
@@ -90,4 +85,42 @@ type Forwarder interface {
 	// Forward implementations must not Close the clientConn or upstreamConn.
 	// It may CloseWrite one or both of them.
 	Forward(ctx context.Context, clientConn, upstreamConn DuplexConn) error
+}
+
+type Server struct {
+	Logger                      slog.Logger
+	Handler                     Handler
+	Listener                    net.Listener
+	AcceptErrorCooldownDuration time.Duration
+}
+
+func (s *Server) Serve() error {
+	for {
+		clientConn, err := s.Listener.Accept()
+		if err != nil {
+			s.Logger.Error(&slog.LogRecord{Msg: "listener.Accept error", Error: err})
+			time.Sleep(s.AcceptErrorCooldownDuration)
+			continue
+		}
+		duplexClientConn, err := asDuplexConn(clientConn)
+		if err != nil {
+			_ = clientConn.Close()
+			return err
+		}
+		ctx := context.Background() // TODO consider adding cancel
+
+		// Handler is responsible for closing the client conn
+		go s.Handler.Handle(ctx, duplexClientConn)
+	}
+}
+
+func asDuplexConn(conn net.Conn) (DuplexConn, error) {
+	switch cc := conn.(type) {
+	case *tls.Conn:
+		return cc, nil
+	case *net.TCPConn:
+		return cc, nil
+	default:
+		return nil, ConnectionTypeUnsupported
+	}
 }
