@@ -2,14 +2,9 @@ package forwarder
 
 import (
 	"context"
-	"runtime/debug"
 	"tcplb/lib/core"
 	"tcplb/lib/limiter"
 	"tcplb/lib/slog"
-)
-
-const (
-	RecovererUnexpectedPanicMessage = "RecovererHandler: Unexpected panic!"
 )
 
 type clientIdContextKeyType struct{}
@@ -58,31 +53,6 @@ func (h *ConnCloserHandler) Handle(ctx context.Context, conn AuthenticatedConn) 
 }
 
 var _ Handler = (*ConnCloserHandler)(nil) // type check
-
-// RecovererHandler is a handler that recovers from panics raised by the
-// Inner handler (if any) and logs an error to the given Logger.
-type RecovererHandler struct {
-	Logger slog.Logger
-	Inner  Handler
-}
-
-func (h *RecovererHandler) Handle(ctx context.Context, conn AuthenticatedConn) {
-	defer func() {
-		panicValue := recover()
-		if panicValue == nil {
-			// Either not panicking or someone called panic(nil). Assume former.
-			return
-		}
-		h.Logger.Error(&slog.LogRecord{
-			Msg:        RecovererUnexpectedPanicMessage,
-			Details:    panicValue,
-			StackTrace: string(debug.Stack()),
-		})
-	}()
-	h.Inner.Handle(ctx, conn)
-}
-
-var _ Handler = (*RecovererHandler)(nil) // type check
 
 // RateLimitingHandler is a handler that only allows the Inner handler to
 // Handle the connection if a reservation can be obtained for the ClientID.

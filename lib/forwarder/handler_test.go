@@ -4,7 +4,6 @@ import (
 	"context"
 	"github.com/stretchr/testify/require"
 	"tcplb/lib/core"
-	"tcplb/lib/slog"
 	"testing"
 )
 
@@ -65,40 +64,4 @@ func TestClientIDAndUpstreamsFromContext(t *testing.T) {
 	upstreamsPrime, ok := UpstreamsFromContext(childCtx)
 	require.True(t, ok)
 	require.Equal(t, upstreams, upstreamsPrime)
-}
-
-// alwaysPanicHandler always panics when asked to Handle.
-type alwaysPanicHandler struct {
-	PanicValue string
-}
-
-func (h alwaysPanicHandler) Handle(ctx context.Context, conn AuthenticatedConn) {
-	panic(h.PanicValue)
-}
-
-func TestRecovererHandlerLogsPanics(t *testing.T) {
-	logger := &slog.RecordingLogger{}
-
-	thePanicValue := "oh no!"
-	h := &RecovererHandler{
-		Logger: logger,
-		Inner:  alwaysPanicHandler{PanicValue: thePanicValue},
-	}
-
-	ctx := context.Background()
-	var conn AuthenticatedConn
-
-	h.Handle(ctx, conn)
-
-	expectedPanicLogCount := 1
-	actualPanicLogCount := 0
-	for _, event := range logger.Events {
-		if event.Msg == RecovererUnexpectedPanicMessage {
-			actualPanicLogCount++
-			require.Equal(t, slog.ErrorLevel, event.Level)
-			require.Equal(t, thePanicValue, event.Details)
-			require.Greater(t, len(event.StackTrace), 0)
-		}
-	}
-	require.Equal(t, expectedPanicLogCount, actualPanicLogCount)
 }
