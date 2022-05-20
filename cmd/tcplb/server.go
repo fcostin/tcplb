@@ -2,11 +2,9 @@ package main
 
 import (
 	"context"
-	"crypto/tls"
 	"errors"
 	"fmt"
 	"net"
-	"tcplb/lib/authn"
 	"tcplb/lib/authz"
 	"tcplb/lib/core"
 	"tcplb/lib/forwarder"
@@ -22,8 +20,6 @@ const (
 	defaultListenAddress               = "0.0.0.0:4321"
 	defaultMaxConnectionsPerClient     = 10
 )
-
-var NotImplementedError = errors.New("not implemented")
 
 // TODO FIXME insecure
 var anonymousTestClientID = core.ClientID{Namespace: "test", Key: "anonymous"}
@@ -109,23 +105,6 @@ func makeForwarderFromConfig(cfg *Config) (forwarder.Forwarder, error) {
 	return forwarder.MediocreForwarder{}, nil
 }
 
-func coerceIntoAuthenticatedConn(logger slog.Logger, conn net.Conn) (forwarder.AuthenticatedConn, error) {
-	var authenticatedClientConn forwarder.AuthenticatedConn = nil
-	switch cc := conn.(type) {
-	case *tls.Conn:
-		authenticatedClientConn = &authn.AuthenticatedTLSConn{Conn: cc}
-	case *net.TCPConn:
-		logger.Warn(&slog.LogRecord{Msg: "using TCP connection to client, this is insecure"})
-		authenticatedClientConn = &authn.InsecureTCPConn{
-			TCPConn:  cc,
-			ClientID: anonymousTestClientID,
-		}
-	default:
-		return nil, NotImplementedError
-	}
-	return authenticatedClientConn, nil
-}
-
 func serve(logger slog.Logger, cfg *Config) error {
 	// Wire together the forwarder.Server
 
@@ -170,10 +149,17 @@ func serve(logger slog.Logger, cfg *Config) error {
 		Reserver: reserver,
 		Inner:    authzHandler,
 	}
+	// TODO replace placeholder implementation: use mTLS for authn
+	authnHandler := &forwarder.AnonymousAuthenticationHandler{
+		Logger:    logger,
+		Inner:     rateLimitingHandler,
+		Anonymous: anonymousTestClientID,
+	}
 	baseHandler := &forwarder.ConnCloserHandler{
-		Inner: rateLimitingHandler,
+		Inner: authnHandler,
 	}
 
+	// TODO replace placeholder implementation: accept TLS instead of TCP.
 	listener, err := net.Listen(cfg.ListenNetwork, cfg.ListenAddress)
 	if err != nil {
 		msg := fmt.Sprintf("Listen error with network: %s address: %s", cfg.ListenNetwork, cfg.ListenAddress)
@@ -190,30 +176,12 @@ func serve(logger slog.Logger, cfg *Config) error {
 	// - stop healthcheck probes of upstreams (if applicable)
 
 	logger.Info(&slog.LogRecord{Msg: fmt.Sprintf("listening on network: %s address: %s", cfg.ListenNetwork, cfg.ListenAddress)})
-	for {
-		// TODO replace placeholder implementation: accept mTLS instead of TCP.
-		clientConn, err := listener.Accept()
-		if err != nil {
-			logger.Error(&slog.LogRecord{Msg: "listener.Accept error", Error: err})
-			time.Sleep(defaultAcceptErrorCooldownDuration)
-			continue
-		}
-		// TODO refactor to remove this AuthenticatedConn abstraction,
-		// instead pass the clientID in the context.
-		authenticatedClientConn, err := coerceIntoAuthenticatedConn(logger, clientConn)
-		if err != nil {
-			_ = clientConn.Close()
-			return err
-		}
-		clientId, err := authenticatedClientConn.GetClientID()
-		if err != nil {
-			_ = clientConn.Close()
-			return err
-		}
-		parentCtx := context.Background() // TODO consider adding cancel
-		ctx := forwarder.NewContextWithClientID(parentCtx, clientId)
-		// baseHandler.Handle is responsible for closing authenticatedClientConn
-		go baseHandler.Handle(ctx, authenticatedClientConn)
+
+	s := &forwarder.Server{
+		Logger:                      logger,
+		Handler:                     baseHandler,
+		Listener:                    listener,
+		AcceptErrorCooldownDuration: defaultAcceptErrorCooldownDuration,
 	}
-	// Unreachable.
+	return s.Serve()
 }

@@ -2,6 +2,8 @@ package forwarder
 
 import (
 	"context"
+	"crypto/tls"
+	"tcplb/lib/authn"
 	"tcplb/lib/core"
 	"tcplb/lib/limiter"
 	"tcplb/lib/slog"
@@ -33,7 +35,7 @@ func UpstreamsFromContext(ctx context.Context) (core.UpstreamSet, bool) {
 
 type Handler interface {
 	// Handle accepts the given AuthenticatedConn from the client.
-	Handle(ctx context.Context, conn AuthenticatedConn)
+	Handle(ctx context.Context, conn DuplexConn)
 }
 
 // ConnCloserHandler is a handler that closes the client connection
@@ -43,7 +45,7 @@ type ConnCloserHandler struct {
 	Inner Handler
 }
 
-func (h *ConnCloserHandler) Handle(ctx context.Context, conn AuthenticatedConn) {
+func (h *ConnCloserHandler) Handle(ctx context.Context, conn DuplexConn) {
 	defer func() {
 		// If there are errors closing the client connection, it is
 		// likely due to client or network. Ignore them.
@@ -54,6 +56,40 @@ func (h *ConnCloserHandler) Handle(ctx context.Context, conn AuthenticatedConn) 
 
 var _ Handler = (*ConnCloserHandler)(nil) // type check
 
+type AnonymousAuthenticationHandler struct {
+	Logger    slog.Logger
+	Anonymous core.ClientID
+	Inner     Handler
+}
+
+func (h *AnonymousAuthenticationHandler) Handle(ctx context.Context, conn DuplexConn) {
+	h.Logger.Warn(&slog.LogRecord{Msg: "AnonymousAuthenticationHandler: using insecure anonymous client connection"})
+	h.Inner.Handle(NewContextWithClientID(ctx, h.Anonymous), conn)
+}
+
+var _ Handler = (*AnonymousAuthenticationHandler)(nil) // type check
+
+type MTLSAuthenticationHandler struct {
+	Logger slog.Logger
+	Inner  Handler
+}
+
+func (h *MTLSAuthenticationHandler) Handle(ctx context.Context, conn DuplexConn) {
+	tlsConn, ok := conn.(*tls.Conn)
+	if !ok {
+		h.Logger.Error(&slog.LogRecord{Msg: "MTLSAuthenticationHandler: client connection is not using TLS"})
+		return
+	}
+	clientID, err := authn.ExtractCanonicalClientID(tlsConn.ConnectionState().VerifiedChains)
+	if err != nil {
+		h.Logger.Error(&slog.LogRecord{Msg: "MTLSAuthenticationHandler: failed to extract ClientID", Error: err})
+		return
+	}
+	h.Inner.Handle(NewContextWithClientID(ctx, clientID), conn)
+}
+
+var _ Handler = (*MTLSAuthenticationHandler)(nil) // type check
+
 // RateLimitingHandler is a handler that only allows the Inner handler to
 // Handle the connection if a reservation can be obtained for the ClientID.
 // A ClientID is expected to be found in the context.
@@ -63,7 +99,7 @@ type RateLimitingHandler struct {
 	Inner    Handler
 }
 
-func (h *RateLimitingHandler) Handle(ctx context.Context, conn AuthenticatedConn) {
+func (h *RateLimitingHandler) Handle(ctx context.Context, conn DuplexConn) {
 	clientID, ok := ClientIDFromContext(ctx)
 	if !ok {
 		h.Logger.Error(&slog.LogRecord{Msg: "RateLimitingHandler: Failed to get ClientID from context"})
@@ -105,7 +141,7 @@ type AuthorizedUpstreamsHandler struct {
 	Inner      Handler
 }
 
-func (h *AuthorizedUpstreamsHandler) Handle(ctx context.Context, conn AuthenticatedConn) {
+func (h *AuthorizedUpstreamsHandler) Handle(ctx context.Context, conn DuplexConn) {
 	clientID, ok := ClientIDFromContext(ctx)
 	if !ok {
 		h.Logger.Error(&slog.LogRecord{Msg: "AuthorizedUpstreamsHandler: Failed to get ClientID from context"})
@@ -140,7 +176,7 @@ type ForwardingHandler struct {
 	Forwarder Forwarder
 }
 
-func (h *ForwardingHandler) Handle(ctx context.Context, conn AuthenticatedConn) {
+func (h *ForwardingHandler) Handle(ctx context.Context, conn DuplexConn) {
 	clientID, ok := ClientIDFromContext(ctx)
 	if !ok {
 		h.Logger.Error(&slog.LogRecord{Msg: "ForwardingHandler: Failed to get ClientID from context"})
