@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"flag"
+	"fmt"
 	"net"
 	"strings"
 	"tcplb/lib/core"
@@ -13,8 +14,6 @@ const (
 	upstreamListSep = ","
 )
 
-var InvalidUpstreamListFlag = errors.New("invalid upstream list flag value")
-
 // UpstreamListValue is a flag.Value for lists of Upstream addresses.
 type UpstreamListValue struct {
 	Upstreams []core.Upstream
@@ -22,7 +21,7 @@ type UpstreamListValue struct {
 
 func (v *UpstreamListValue) String() string {
 	n := len(v.Upstreams)
-	tokens := make([]string, n, n)
+	tokens := make([]string, n)
 	for i, u := range v.Upstreams {
 		tokens[i] = u.Address
 	}
@@ -34,7 +33,8 @@ func (v *UpstreamListValue) Set(s string) error {
 	for _, token := range tokens {
 		host, port, err := net.SplitHostPort(token)
 		if err != nil {
-			return InvalidUpstreamListFlag
+			msg := fmt.Sprintf("expected upstream address of form host:port but got %s", token)
+			return errors.New(msg)
 		}
 		upstream := core.Upstream{
 			Network: defaultUpstreamNetwork,
