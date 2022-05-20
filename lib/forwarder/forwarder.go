@@ -13,7 +13,7 @@ type MediocreForwarder struct{}
 
 func (f MediocreForwarder) Forward(ctx context.Context, clientConn, upstreamConn DuplexConn) error {
 	// Caller is responsible for closing both DuplexConns, not us.
-	out := make(chan error, 2)
+	out := make(chan error, 4)
 	wg := sync.WaitGroup{}
 
 	copy := func(dst, src DuplexConn, out chan<- error) {
@@ -23,8 +23,9 @@ func (f MediocreForwarder) Forward(ctx context.Context, clientConn, upstreamConn
 		// some time window.
 		// TODO FIXME also honour cancellation by ctx
 		_, err := io.Copy(dst, src)
-		_ = dst.CloseWrite() // Inform peer at dst end that we're done writing.
+		cwErr := dst.CloseWrite() // Inform peer at dst end that we're done writing.
 		out <- err
+		out <- cwErr
 	}
 
 	wg.Add(1)
