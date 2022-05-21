@@ -80,6 +80,11 @@ func (h *MTLSAuthenticationHandler) Handle(ctx context.Context, conn DuplexConn)
 		h.Logger.Error(&slog.LogRecord{Msg: "MTLSAuthenticationHandler: client connection is not using TLS"})
 		return
 	}
+	err := tlsConn.HandshakeContext(ctx)
+	if err != nil {
+		h.Logger.Error(&slog.LogRecord{Msg: "MTLSAuthenticationHandler: TLS handshake error", Error: err})
+		return
+	}
 	clientID, err := authn.ExtractCanonicalClientID(tlsConn.ConnectionState().VerifiedChains)
 	if err != nil {
 		h.Logger.Error(&slog.LogRecord{Msg: "MTLSAuthenticationHandler: failed to extract ClientID", Error: err})
