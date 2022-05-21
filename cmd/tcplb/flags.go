@@ -49,7 +49,8 @@ func newConfigFromFlags(argv []string) (*Config, error) {
 	flagSet := flag.NewFlagSet(commandName, flag.ExitOnError)
 
 	cfg := &Config{
-		ListenNetwork: defaultListenNetwork,
+		ListenNetwork:          defaultListenNetwork,
+		ApplicationIdleTimeout: defaultApplicationIdleTimeout,
 	}
 
 	upstreamListVar := &UpstreamListValue{}

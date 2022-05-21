@@ -15,6 +15,7 @@ import (
 
 const (
 	defaultAcceptErrorCooldownDuration = time.Second
+	defaultApplicationIdleTimeout      = 15 * time.Second
 	defaultDialerTimeout               = 15 * time.Second
 	defaultUpstreamNetwork             = "tcp"
 	defaultListenNetwork               = "tcp"
@@ -30,6 +31,7 @@ type Config struct {
 	ListenAddress           string
 	Upstreams               []core.Upstream
 	MaxConnectionsPerClient int64
+	ApplicationIdleTimeout  time.Duration
 }
 
 func (c *Config) Validate() error {
@@ -78,9 +80,11 @@ func makeDialerFromConfig(cfg *Config, logger slog.Logger) (forwarder.BestUpstre
 	return dialer, nil
 }
 
-func makeForwarderFromConfig(cfg *Config) (forwarder.Forwarder, error) {
-	// TODO implement something more robust with timeouts
-	return forwarder.MediocreForwarder{}, nil
+func makeForwarderFromConfig(cfg *Config, logger slog.Logger) (forwarder.Forwarder, error) {
+	return &forwarder.ForwardingSupervisor{
+		IdleTimeout: cfg.ApplicationIdleTimeout,
+		Logger:      logger,
+	}, nil
 }
 
 func serve(logger slog.Logger, cfg *Config) error {
@@ -104,7 +108,7 @@ func serve(logger slog.Logger, cfg *Config) error {
 		return err
 	}
 
-	fwder, err := makeForwarderFromConfig(cfg)
+	fwder, err := makeForwarderFromConfig(cfg, logger)
 	if err != nil {
 		logger.Error(&slog.LogRecord{Msg: "Forwarder configuration error", Error: err})
 		return err
