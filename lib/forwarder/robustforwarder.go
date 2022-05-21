@@ -107,7 +107,7 @@ type ForwardingSupervisor struct {
 
 // Forward copies data between client DuplexConn and upstream DuplexConn.
 //
-// The caller is responsible for closing both connections after calling Forward, in both
+// The caller is responsible for closing both connections after Forward returns, in both
 // error and non-error cases. If the caller does not close both connections, then resources
 // may not be released in some error scenarios.
 func (s *ForwardingSupervisor) Forward(ctx context.Context, clientConn, upstreamConn DuplexConn) error {
