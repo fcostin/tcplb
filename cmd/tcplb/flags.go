@@ -53,7 +53,11 @@ func newConfigFromFlags(argv []string) (*Config, error) {
 		ApplicationIdleTimeout: defaultApplicationIdleTimeout,
 	}
 
+	tlsConfig := &TLSConfig{}
+
 	upstreamListVar := &UpstreamListValue{}
+
+	var insecureAcceptTCP bool
 
 	flagSet.StringVar(
 		&(cfg.ListenAddress),
@@ -70,7 +74,34 @@ func newConfigFromFlags(argv []string) (*Config, error) {
 		"upstreams",
 		"comma-separated list of upstream as host:port")
 
+	flagSet.StringVar(
+		&(tlsConfig.ServerKeyFile),
+		"key-file",
+		"",
+		"filename of PEM-encoded private key, for serving TLS")
+	flagSet.StringVar(
+		&(tlsConfig.ServerCertFile),
+		"cert-file",
+		"",
+		"filename of PEM-encoded certificate chain, ordered leaf first, for serving TLS")
+	flagSet.StringVar(
+		&(tlsConfig.RootCAPath),
+		"ca-root-file",
+		"",
+		"filename of PEM-encoded trusted CA root certificates")
+
+	flagSet.BoolVar(
+		&insecureAcceptTCP,
+		"insecure-accept-tcp",
+		false,
+		"disable TLS and instead accept anonymous TCP connections? (INSECURE)")
+
 	err := flagSet.Parse(argv[1:])
 	cfg.Upstreams = upstreamListVar.Upstreams
+	cfg.TLS = tlsConfig
+
+	if insecureAcceptTCP {
+		cfg.Authentication = &AuthnConfig{AllowAnonymous: true}
+	}
 	return cfg, err
 }
