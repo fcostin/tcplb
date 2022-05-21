@@ -29,16 +29,17 @@ import (
 )
 
 var (
-	host        = flag.String("host", "", "Comma-separated hostnames and IPs to generate a certificate for")
-	commonName  = flag.String("common-name", "", "value for certificate subject common name")
-	validFrom   = flag.String("start-date", "", "Creation date formatted as Jan 1 15:04:05 2011")
-	validFor    = flag.Duration("duration", 365*24*time.Hour, "Duration that certificate is valid for")
-	isCA        = flag.Bool("ca", false, "whether this cert should be its own Certificate Authority")
-	rsaBits     = flag.Int("rsa-bits", 2048, "Size of RSA key to generate. Ignored if --ecdsa-curve is set")
-	ecdsaCurve  = flag.String("ecdsa-curve", "", "ECDSA curve to use to generate a key. Valid values are P224, P256 (recommended), P384, P521")
-	ed25519Key  = flag.Bool("ed25519", false, "Generate an Ed25519 key")
-	outKeyPath  = flag.String("out-key", "key.pem", "output path for key file")
-	outCertPath = flag.String("out-cert", "cert.pem", "output path for cert file")
+	host            = flag.String("host", "", "Comma-separated hostnames and IPs to generate a certificate for")
+	commonName      = flag.String("common-name", "", "value for certificate subject common name")
+	validFrom       = flag.String("start-date", "", "Creation date formatted as Jan 1 15:04:05 2011")
+	validFor        = flag.Duration("duration", 365*24*time.Hour, "Duration that certificate is valid for")
+	isCA            = flag.Bool("ca", false, "whether this cert should be its own Certificate Authority")
+	rsaBits         = flag.Int("rsa-bits", 2048, "Size of RSA key to generate. Ignored if --ecdsa-curve is set")
+	ecdsaCurve      = flag.String("ecdsa-curve", "", "ECDSA curve to use to generate a key. Valid values are P224, P256 (recommended), P384, P521")
+	ed25519Key      = flag.Bool("ed25519", false, "Generate an Ed25519 key")
+	usageClientAuth = flag.Bool("usage-client-auth", false, "mark certificate as intended for client authentication")
+	outKeyPath      = flag.String("out-key", "key.pem", "output path for key file")
+	outCertPath     = flag.String("out-cert", "cert.pem", "output path for cert file")
 )
 
 func publicKey(priv any) any {
@@ -120,6 +121,13 @@ func main() {
 		subject.CommonName = *commonName
 	}
 
+	extKeyUsage := []x509.ExtKeyUsage{}
+	if *usageClientAuth {
+		extKeyUsage = append(extKeyUsage, x509.ExtKeyUsageClientAuth)
+	} else {
+		extKeyUsage = append(extKeyUsage, x509.ExtKeyUsageServerAuth)
+	}
+
 	template := x509.Certificate{
 		SerialNumber: serialNumber,
 		Subject:      subject,
@@ -127,7 +135,7 @@ func main() {
 		NotAfter:     notAfter,
 
 		KeyUsage:              keyUsage,
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		ExtKeyUsage:           extKeyUsage,
 		BasicConstraintsValid: true,
 	}
 

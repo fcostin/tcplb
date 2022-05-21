@@ -19,6 +19,9 @@ containerised_build:
 allkeys:	$(KEYS)
 .PHONY: allkeys
 
+tool/generate_cert:	tool/generate_cert.go
+	go build -o $@ ./$<
+
 %/key.pem:		tool/generate_cert %/certkey.recipe
 	$< -common-name $* -out-key $@ -out-cert $(addsuffix cert.pem,$(dir $@)) $(shell cat $(word 2,$^))
 	# display the cert contents

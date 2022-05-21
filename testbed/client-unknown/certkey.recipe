@@ -1,1 +1,1 @@
--common-name client-unknown -ed25519 -host client-unknown
+-common-name client-unknown -ed25519 -host client-unknown -usage-client-auth=true

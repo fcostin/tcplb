@@ -1,1 +1,1 @@
--common-name client-strong -ed25519 -host client-strong
+-common-name client-strong -ed25519 -host client-strong -usage-client-auth=true
