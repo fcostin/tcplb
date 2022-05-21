@@ -98,8 +98,8 @@ func makeAuthorizerFromConfig(cfg *Config) (forwarder.Authorizer, error) {
 
 	authzCfg := authz.Config{
 		GroupsByClientID: map[core.ClientID][]authz.Group{
-			// clientStronganonymousTestClientID: {urGroup},
-			clientStrong: {urGroup},
+			// clientStronganonymousTestClientID: {urGroup}, // FIXME unhardcode
+			clientStrong: {urGroup}, // FIXME unhardcode
 		},
 		UpstreamGroupsByGroup: map[authz.Group][]authz.UpstreamGroup{
 			urGroup: {urUpstreamGroup},
@@ -219,7 +219,6 @@ func makeListenerFromConfig(cfg *Config, logger slog.Logger) (net.Listener, erro
 		ClientAuth:   tls.RequireAndVerifyClientCert,
 		MinVersion:   tls.VersionTLS13,
 		MaxVersion:   tls.VersionTLS13,
-		// CurvePreferences: []tls.CurveID{tls.X25519}, // FIXME - do we want to constrain this?
 	}
 	listener, err := tls.Listen(cfg.ListenNetwork, cfg.ListenAddress, tlsConfig)
 	if err == nil {
