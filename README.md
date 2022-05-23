@@ -83,7 +83,7 @@ Start `tcplb`, forwarding to `example.com` port 80:
 	-ca-root-file testbed/client-strong/cert.pem \
 	-cert-file testbed/tcplb-server-strong/cert.pem \
 	-key-file testbed/tcplb-server-strong/key.pem \
-	-listen-address 127.0.0.1:4321
+	-listen-address 127.0.0.1:4321 \
 	-upstreams example.com:80
 ```
 
