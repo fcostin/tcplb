@@ -21,11 +21,16 @@ import (
  * These tests require that the TCPLB_TESTBED_ROOT is set to the testbed
  * directory, containing various example server and client certificates.
  *
- * To set this up, then run this test suite:
+ * USAGE:
+ *
  * 1. ensure working dir is root directory of the repo checkout
- * 2. `make allkeys`
- * 3. `export TCPLB_TESTBED_ROOT=$(pwd)/testbed`
- * 4. `go test -v ./cmd/...`
+ * 2. `make servertest`
+ *
+ * KNOWN ISSUES:
+ * - this suite launches various clients and servers, but doesn't set
+ *   timeouts. If the application or test suite are defective, some tests
+ *   may hang. This can be mitigated with the `-timeout d` flag to
+ *   go test, see `go help testflags`, but it'd be good to fix it.
  */
 
 const (
