@@ -4,7 +4,7 @@ import (
 	"context"
 	"io"
 	"sync"
-	"tcplb/lib/errors"
+	liberrors "tcplb/lib/errors"
 )
 
 // MediocreForwarder is a implementation of the Forward operation.
@@ -40,5 +40,5 @@ func (f MediocreForwarder) Forward(ctx context.Context, clientConn, upstreamConn
 	wg.Wait()
 	close(out)
 
-	return errors.AggregateErrorFromChannel(out)
+	return liberrors.AggregateErrorFromChannel(out)
 }

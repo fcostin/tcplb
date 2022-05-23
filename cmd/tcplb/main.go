@@ -22,7 +22,12 @@ func main() {
 		os.Exit(2)
 	}
 
-	err = serve(logger, cfg)
+	server, err := NewServer(logger, cfg)
+	if err != nil {
+		logger.Error(&slog.LogRecord{Msg: "failed to create server", Error: err})
+		os.Exit(1)
+	}
+	err = server.Serve()
 	if err != nil {
 		logger.Error(&slog.LogRecord{Msg: "server terminated abnormally", Error: err})
 		os.Exit(1)

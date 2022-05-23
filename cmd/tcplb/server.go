@@ -1,12 +1,19 @@
 package main
 
 import (
-	"context"
+	"crypto/ed25519"
+	"crypto/tls"
+	"crypto/x509"
+	"encoding/pem"
 	"errors"
 	"fmt"
+	"io"
 	"net"
+	"os"
+	"tcplb/lib/authn"
 	"tcplb/lib/authz"
 	"tcplb/lib/core"
+	"tcplb/lib/dialer"
 	"tcplb/lib/forwarder"
 	"tcplb/lib/limiter"
 	"tcplb/lib/slog"
@@ -15,6 +22,9 @@ import (
 
 const (
 	defaultAcceptErrorCooldownDuration = time.Second
+	defaultForwardingTimeout           = 5 * time.Minute
+	defaultDialerTimeout               = 15 * time.Second
+	defaultTLSHandshakeTimeout         = 15 * time.Second
 	defaultUpstreamNetwork             = "tcp"
 	defaultListenNetwork               = "tcp"
 	defaultListenAddress               = "0.0.0.0:4321"
@@ -22,18 +32,53 @@ const (
 )
 
 // TODO FIXME insecure
-var anonymousTestClientID = core.ClientID{Namespace: "test", Key: "anonymous"}
+var anonymousTestClientID = core.ClientID{Namespace: authn.DefaultNamespace, Key: "anonymous"}
 
 type Config struct {
 	ListenNetwork           string
 	ListenAddress           string
 	Upstreams               []core.Upstream
 	MaxConnectionsPerClient int64
+	TLSHandshakeTimeout     time.Duration
+	TLS                     *TLSConfig
+	Authentication          *AuthnConfig
+	Authorization           *AuthzConfig
+}
+
+type TLSConfig struct {
+	ServerCertFile string
+	ServerKeyFile  string
+	RootCAPath     string
+}
+
+type AuthnConfig struct {
+	AllowAnonymous bool
+}
+
+type AuthzConfig struct {
+	AuthorizedClients []core.ClientID
 }
 
 func (c *Config) Validate() error {
 	if len(c.Upstreams) == 0 {
 		return errors.New("server must be configured with 1 or more upstreams")
+	}
+
+	if c.TLS != nil {
+		someTLSConfig := len(c.TLS.ServerKeyFile) > 0 || len(c.TLS.ServerCertFile) > 0 || len(c.TLS.RootCAPath) > 0
+		allTLSConfig := len(c.TLS.ServerKeyFile) > 0 && len(c.TLS.ServerCertFile) > 0 && len(c.TLS.RootCAPath) > 0
+
+		if someTLSConfig && !allTLSConfig {
+			return errors.New("TLS misconfiguration: key-file, cert-file and ca-root-file must all be given")
+		}
+		if c.Authentication != nil && c.Authentication.AllowAnonymous {
+			return errors.New("refusing to allow anonymous authentication when TLS is configured")
+		}
+		if !someTLSConfig {
+			if c.Authentication == nil || c.Authentication.AllowAnonymous {
+				return errors.New("TLS configuration not found")
+			}
+		}
 	}
 	return nil
 }
@@ -52,10 +97,9 @@ func makeAuthorizerFromConfig(cfg *Config) (forwarder.Authorizer, error) {
 	// TODO FIXME begin placeholder demo authorization config
 	urGroup := authz.Group{Key: "ur"}
 	urUpstreamGroup := authz.UpstreamGroup{Key: "ur"}
+
 	authzCfg := authz.Config{
-		GroupsByClientID: map[core.ClientID][]authz.Group{
-			anonymousTestClientID: {urGroup},
-		},
+		GroupsByClientID: make(map[core.ClientID][]authz.Group),
 		UpstreamGroupsByGroup: map[authz.Group][]authz.UpstreamGroup{
 			urGroup: {urUpstreamGroup},
 		},
@@ -63,73 +107,172 @@ func makeAuthorizerFromConfig(cfg *Config) (forwarder.Authorizer, error) {
 			urUpstreamGroup: core.NewUpstreamSet(cfg.Upstreams...),
 		},
 	}
+
+	if cfg.Authorization != nil {
+		for _, client := range cfg.Authorization.AuthorizedClients {
+			authzCfg.GroupsByClientID[client] = []authz.Group{urGroup}
+		}
+	}
+
 	// TODO FIXME end placeholder demo authorization config
 	return authz.NewStaticAuthorizer(authzCfg), nil
 }
 
-// PlaceholderDialer attempts to dial an arbitrary candidate and gives up if that fails.
-// This is implementation has various issues:
-// - no timeout
-// - it doesn't attempt to balance load
-// - it doesn't try alternative upstreams if one attempt fails
-// - it doesn't learn anything
-type PlaceholderDialer struct {
-	Logger slog.Logger
-}
-
-func (d PlaceholderDialer) DialBestUpstream(ctx context.Context, candidates core.UpstreamSet) (core.Upstream, forwarder.DuplexConn, error) {
-	for c := range candidates {
-		conn, err := net.Dial(c.Network, c.Address)
-		if err != nil {
-			return core.Upstream{}, nil, err
-		}
-		switch upstreamConn := conn.(type) {
-		case *net.TCPConn:
-			return c, upstreamConn, nil
-		default:
-			d.Logger.Error(&slog.LogRecord{Msg: "upstreamConn has unsupported type, closing it"})
-			_ = conn.Close()
-			break
-		}
-	}
-	return core.Upstream{}, nil, errors.New("PlaceholderDialer failed to dial")
-}
-
 func makeDialerFromConfig(cfg *Config, logger slog.Logger) (forwarder.BestUpstreamDialer, error) {
-	// TODO FIXME replace with something better
-	return PlaceholderDialer{Logger: logger}, nil
+	dialer := &dialer.RetryDialer{
+		Logger:      logger,
+		Timeout:     defaultDialerTimeout,
+		Policy:      dialer.NewLeastConnectionDialPolicy(),
+		InnerDialer: dialer.SimpleUpstreamDialer{},
+	}
+	return dialer, nil
 }
 
-func makeForwarderFromConfig(cfg *Config) (forwarder.Forwarder, error) {
-	// TODO implement something more robust with timeouts
-	return forwarder.MediocreForwarder{}, nil
+func makeForwarderFromConfig(cfg *Config, logger slog.Logger) (forwarder.Forwarder, error) {
+	return &forwarder.ForwardingSupervisor{
+		Logger:            logger,
+		ForwardingTimeout: defaultForwardingTimeout,
+	}, nil
 }
 
-func serve(logger slog.Logger, cfg *Config) error {
+func loadServerCertificatesFromTLSConfig(cfg *TLSConfig) ([]tls.Certificate, error) {
+	cert, err := tls.LoadX509KeyPair(cfg.ServerCertFile, cfg.ServerKeyFile)
+	if err != nil {
+		return nil, err
+	}
+	// We expect ed25519 and accept no substitute.
+	leaf, err := x509.ParseCertificate(cert.Certificate[0])
+	if err != nil {
+		return nil, err
+	}
+	switch pub := leaf.PublicKey.(type) {
+	case ed25519.PublicKey:
+	default:
+		msg := fmt.Sprintf("expected server certificate using key algorithm ed25519 but instead got %T", pub)
+		return nil, errors.New(msg)
+	}
+
+	chains := []tls.Certificate{
+		cert,
+	}
+	return chains, nil
+}
+
+func loadRootCAs(rootCAPath string) (*x509.CertPool, error) {
+	// Variant of x509 CertPool AppendCertsFromPEM that fails on errors.
+	// The version in the standard library skips over certs that don't parse. (!)
+	AppendCertsFromPEM := func(pool *x509.CertPool, pemCerts []byte) error {
+		for len(pemCerts) > 0 {
+			var block *pem.Block
+			block, pemCerts = pem.Decode(pemCerts)
+			if block == nil {
+				break
+			}
+			if block.Type != "CERTIFICATE" || len(block.Headers) != 0 {
+				continue
+			}
+
+			certBytes := block.Bytes
+			cert, err := x509.ParseCertificate(certBytes)
+			if err != nil {
+				return err
+			}
+			pool.AddCert(cert)
+		}
+		return nil
+	}
+
+	f, err := os.Open(rootCAPath)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = f.Close() }()
+
+	data, err := io.ReadAll(f)
+	if err != nil {
+		return nil, err
+	}
+
+	pool := x509.NewCertPool()
+	err = AppendCertsFromPEM(pool, data)
+	return pool, err
+}
+
+func makeListenerFromConfig(cfg *Config, logger slog.Logger) (net.Listener, error) {
+	if cfg.TLS == nil {
+		logger.Warn(&slog.LogRecord{Msg: "no TLS configuration found"})
+		listener, err := net.Listen(cfg.ListenNetwork, cfg.ListenAddress)
+		if err == nil {
+			logger.Warn(&slog.LogRecord{Msg: "created insecure TCP listener"})
+		}
+		return listener, err
+	}
+	logger.Info(&slog.LogRecord{Msg: "TLS - found configuration"})
+	certificates, err := loadServerCertificatesFromTLSConfig(cfg.TLS)
+	if err != nil {
+		return nil, err
+	}
+	logger.Info(&slog.LogRecord{Msg: "TLS - loaded server certificate and key"})
+	rootCAs, err := loadRootCAs(cfg.TLS.RootCAPath)
+	if err != nil {
+		return nil, err
+	}
+	logger.Info(&slog.LogRecord{Msg: "TLS - loaded server root CAs"})
+	tlsConfig := &tls.Config{
+		Certificates: certificates,
+		ClientCAs:    rootCAs,
+		RootCAs:      x509.NewCertPool(), // we plan no outbound TLS connections; trust no one.
+		ClientAuth:   tls.RequireAndVerifyClientCert,
+		MinVersion:   tls.VersionTLS13,
+		MaxVersion:   tls.VersionTLS13,
+	}
+	listener, err := tls.Listen(cfg.ListenNetwork, cfg.ListenAddress, tlsConfig)
+	if err == nil {
+		logger.Info(&slog.LogRecord{Msg: "TLS - created listener"})
+	}
+	return listener, err
+}
+
+func makeAuthenticatorFromConfig(cfg *Config, logger slog.Logger, inner forwarder.Handler) (forwarder.Handler, error) {
+	if cfg.Authentication != nil && cfg.Authentication.AllowAnonymous {
+		return &forwarder.AnonymousAuthenticationHandler{
+			Logger:    logger,
+			Inner:     inner,
+			Anonymous: anonymousTestClientID,
+		}, nil
+	}
+	return &forwarder.MTLSAuthenticationHandler{
+		Logger:           logger,
+		Inner:            inner,
+		HandshakeTimeout: cfg.TLSHandshakeTimeout,
+	}, nil
+}
+
+func NewServer(logger slog.Logger, cfg *Config) (*forwarder.Server, error) {
 	// Wire together the forwarder.Server
 
 	reserver, err := makeClientReserverFromConfig(cfg)
 	if err != nil {
 		logger.Error(&slog.LogRecord{Msg: "Client rate-limiter error", Error: err})
-		return err
+		return nil, err
 	}
 
 	authorizer, err := makeAuthorizerFromConfig(cfg)
 	if err != nil {
 		logger.Error(&slog.LogRecord{Msg: "Authorization configuration error", Error: err})
-		return err
+		return nil, err
 	}
 
 	dialer, err := makeDialerFromConfig(cfg, logger)
 	if err != nil {
 		logger.Error(&slog.LogRecord{Msg: "Dialer configuration error", Error: err})
-		return err
+		return nil, err
 	}
 
-	fwder, err := makeForwarderFromConfig(cfg)
+	fwder, err := makeForwarderFromConfig(cfg, logger)
 	if err != nil {
 		logger.Error(&slog.LogRecord{Msg: "Forwarder configuration error", Error: err})
-		return err
+		return nil, err
 	}
 
 	// Compose stack of connection handlers. They are defined
@@ -149,26 +292,21 @@ func serve(logger slog.Logger, cfg *Config) error {
 		Reserver: reserver,
 		Inner:    authzHandler,
 	}
-	// TODO replace placeholder implementation: use mTLS for authn
-	authnHandler := &forwarder.AnonymousAuthenticationHandler{
-		Logger:    logger,
-		Inner:     rateLimitingHandler,
-		Anonymous: anonymousTestClientID,
+	authnHandler, err := makeAuthenticatorFromConfig(cfg, logger, rateLimitingHandler)
+	if err != nil {
+		logger.Error(&slog.LogRecord{Msg: "Authenticator configuration error", Error: err})
+		return nil, err
 	}
 	baseHandler := &forwarder.ConnCloserHandler{
 		Inner: authnHandler,
 	}
 
-	// TODO replace placeholder implementation: accept TLS instead of TCP.
-	listener, err := net.Listen(cfg.ListenNetwork, cfg.ListenAddress)
+	listener, err := makeListenerFromConfig(cfg, logger)
 	if err != nil {
 		msg := fmt.Sprintf("Listen error with network: %s address: %s", cfg.ListenNetwork, cfg.ListenAddress)
 		logger.Error(&slog.LogRecord{Msg: msg, Error: err})
-		return err
+		return nil, err
 	}
-	defer func() {
-		_ = listener.Close()
-	}()
 
 	// TODO graceful shutdown upon receiving interrupt
 	// - stop accepting new connections
@@ -183,5 +321,5 @@ func serve(logger slog.Logger, cfg *Config) error {
 		Listener:                    listener,
 		AcceptErrorCooldownDuration: defaultAcceptErrorCooldownDuration,
 	}
-	return s.Serve()
+	return s, nil
 }

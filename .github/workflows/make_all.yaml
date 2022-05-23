@@ -1,4 +1,4 @@
-name: containerised_build
+name: make_all
 
 on:
   push:
@@ -7,10 +7,14 @@ on:
     branches: [ master ]
 
 jobs:
-  containerised_build:
+  make_all:
     runs-on: ["ubuntu-20.04"]
     steps:
       - name: checkout repo
         uses: actions/checkout@v3
-      - name: make containerised_build
-        run: make containerised_build
+      - name: setup go
+        uses: actions/setup-go@v3
+        with:
+          go-version: '1.18.x'
+      - name: make all
+        run: make all

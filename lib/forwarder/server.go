@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"net"
+	"sync"
 	"tcplb/lib/core"
 	"tcplb/lib/slog"
 	"time"
@@ -92,13 +93,26 @@ type Server struct {
 	Handler                     Handler
 	Listener                    net.Listener
 	AcceptErrorCooldownDuration time.Duration
+
+	mu                  sync.Mutex
+	handleCtxCancelFunc context.CancelFunc
 }
 
 func (s *Server) Serve() error {
+	baseCtx := context.Background()
+	handleCtx, cancel := context.WithCancel(baseCtx)
+	s.mu.Lock()
+	s.handleCtxCancelFunc = cancel
+	s.mu.Unlock()
+
 	for {
 		clientConn, err := s.Listener.Accept()
 		if err != nil {
-			s.Logger.Error(&slog.LogRecord{Msg: "listener.Accept error", Error: err})
+			if errors.Is(err, net.ErrClosed) {
+				s.Logger.Error(&slog.LogRecord{Msg: "listener closed, server will terminate", Error: err})
+				return err
+			}
+			s.Logger.Error(&slog.LogRecord{Msg: "listener.Accept error, retrying", Error: err})
 			time.Sleep(s.AcceptErrorCooldownDuration)
 			continue
 		}
@@ -107,11 +121,23 @@ func (s *Server) Serve() error {
 			_ = clientConn.Close()
 			return err
 		}
-		ctx := context.Background() // TODO consider adding cancel
 
 		// Handler is responsible for closing the client conn
-		go s.Handler.Handle(ctx, duplexClientConn)
+		go s.Handler.Handle(handleCtx, duplexClientConn)
 	}
+}
+
+func (s *Server) Close() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.handleCtxCancelFunc == nil {
+		return nil // server was never started!
+	}
+	// cease accepting connections
+	err := s.Listener.Close()
+	// cancel all handler goroutines
+	s.handleCtxCancelFunc()
+	return err
 }
 
 func asDuplexConn(conn net.Conn) (DuplexConn, error) {
