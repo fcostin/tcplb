@@ -51,6 +51,7 @@ func newConfigFromFlags(argv []string) (*Config, error) {
 	cfg := &Config{
 		ListenNetwork:          defaultListenNetwork,
 		ApplicationIdleTimeout: defaultApplicationIdleTimeout,
+		TLSHandshakeTimeout:    defaultTLSHandshakeTimeout,
 	}
 
 	tlsConfig := &TLSConfig{}

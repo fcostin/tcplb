@@ -7,6 +7,7 @@ import (
 	"tcplb/lib/core"
 	"tcplb/lib/limiter"
 	"tcplb/lib/slog"
+	"time"
 )
 
 type clientIdContextKeyType struct{}
@@ -70,8 +71,9 @@ func (h *AnonymousAuthenticationHandler) Handle(ctx context.Context, conn Duplex
 var _ Handler = (*AnonymousAuthenticationHandler)(nil) // type check
 
 type MTLSAuthenticationHandler struct {
-	Logger slog.Logger
-	Inner  Handler
+	Logger           slog.Logger
+	Inner            Handler
+	HandshakeTimeout time.Duration
 }
 
 func (h *MTLSAuthenticationHandler) Handle(ctx context.Context, conn DuplexConn) {
@@ -80,7 +82,15 @@ func (h *MTLSAuthenticationHandler) Handle(ctx context.Context, conn DuplexConn)
 		h.Logger.Error(&slog.LogRecord{Msg: "MTLSAuthenticationHandler: client connection is not using TLS"})
 		return
 	}
-	err := tlsConn.HandshakeContext(ctx)
+	var err error
+	if h.HandshakeTimeout > 0 {
+		handshakeCtx, cancel := context.WithTimeout(ctx, h.HandshakeTimeout)
+		defer cancel()
+		err = tlsConn.HandshakeContext(handshakeCtx)
+	} else {
+		err = tlsConn.HandshakeContext(ctx)
+	}
+
 	if err != nil {
 		h.Logger.Error(&slog.LogRecord{Msg: "MTLSAuthenticationHandler: TLS handshake error", Error: err})
 		return

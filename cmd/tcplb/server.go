@@ -23,6 +23,7 @@ const (
 	defaultAcceptErrorCooldownDuration = time.Second
 	defaultApplicationIdleTimeout      = 15 * time.Second
 	defaultDialerTimeout               = 15 * time.Second
+	defaultTLSHandshakeTimeout         = 15 * time.Second
 	defaultUpstreamNetwork             = "tcp"
 	defaultListenNetwork               = "tcp"
 	defaultListenAddress               = "0.0.0.0:4321"
@@ -38,6 +39,7 @@ type Config struct {
 	Upstreams               []core.Upstream
 	MaxConnectionsPerClient int64
 	ApplicationIdleTimeout  time.Duration
+	TLSHandshakeTimeout     time.Duration
 	TLS                     *TLSConfig
 	Authentication          *AuthnConfig
 	Authorization           *AuthzConfig
@@ -241,8 +243,9 @@ func makeAuthenticatorFromConfig(cfg *Config, logger slog.Logger, inner forwarde
 		}, nil
 	}
 	return &forwarder.MTLSAuthenticationHandler{
-		Logger: logger,
-		Inner:  inner,
+		Logger:           logger,
+		Inner:            inner,
+		HandshakeTimeout: cfg.TLSHandshakeTimeout,
 	}, nil
 }
 

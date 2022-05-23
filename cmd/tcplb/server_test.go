@@ -15,6 +15,7 @@ import (
 	"tcplb/lib/core"
 	"tcplb/lib/slog"
 	"testing"
+	"time"
 )
 
 /* This is a heavyweight suite of tests that tests the entire server.
@@ -60,6 +61,7 @@ func newTestServerConfig(certFile, keyFile, rootCAPath string, upstreams []core.
 		ListenNetwork:           defaultListenNetwork,
 		ListenAddress:           "0.0.0.0:0", // bind to an arbitrary free port
 		ApplicationIdleTimeout:  defaultApplicationIdleTimeout,
+		TLSHandshakeTimeout:     2 * time.Second,
 		MaxConnectionsPerClient: 5,
 		Upstreams:               upstreams,
 		TLS: &TLSConfig{
@@ -359,6 +361,111 @@ func TestServerRejectsUntrustedTLSClient(t *testing.T) {
 	expectedErrorMessage := "remote error: tls: bad certificate"
 	require.Error(t, clientErr)
 	require.Equal(t, expectedErrorMessage, clientErr.Error())
+
+	defer func() {
+		closeErr := server.Close()
+		require.NoError(t, closeErr)
+	}()
+}
+
+// makeSilentTCPClientConn establishes a TCP connection to given server then says nothing.
+// it can be terminated by the context.
+func makeSilentTCPClientConn(ctx context.Context, serverAddress string, out chan<- error) {
+	d := &net.Dialer{}
+	network := "tcp"
+	tcpConn, err := d.Dial(network, serverAddress)
+	if err != nil {
+		out <- err
+		return
+	}
+	defer func() { _ = tcpConn.Close() }()
+
+	// poll the conn to sense if the load balancer closes it.
+	buff := make([]byte, 1)
+	for {
+		err := tcpConn.SetDeadline(time.Now().Add(10 * time.Millisecond))
+		if err != nil {
+			out <- err
+			return
+		}
+		// stopping condition 1: EOF
+		_, err = tcpConn.Read(buff)
+		if err != nil && !errors.Is(err, os.ErrDeadlineExceeded) {
+			out <- err
+			return
+		}
+		// stopping condition 2: context cancellation
+		if ctx.Err() != nil {
+			out <- err
+			return
+		}
+	}
+}
+
+// This is a slow test, it sleeps for 2 seconds.
+func TestServerRejectsSilentTCPClient(t *testing.T) {
+	// This tests a scenario where a client opens a TCP connection and then
+	// writes no bytes - the server is expected to enforce a TLS handshake timeout
+	// and close the connection.
+	logger := slog.GetDefaultLogger()
+
+	serverCertFile := testResource(t, "tcplb-server-strong/cert.pem")
+	serverKeyFile := testResource(t, "tcplb-server-strong/key.pem")
+
+	clientName := "client-strong"
+	clientId := core.ClientID{Namespace: authn.DefaultNamespace, Key: clientName}
+	clientCertFile := testResource(t, "client-strong/cert.pem")
+
+	// launch demo app server to act as the upstream
+	upstreamServer, err := newDemoAppServer("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	go func() {
+		srvErr := upstreamServer.Serve()
+		logger.Error(&slog.LogRecord{Msg: "server.Serve returned error", Error: srvErr})
+	}()
+	defer func() {
+		_ = upstreamServer.Close()
+	}()
+
+	// Configure tcplb server to:
+	// - forward to the upstream
+	// - trust the client
+	theUpstream := core.Upstream{Network: "tcp", Address: upstreamServer.Listener.Addr().String()}
+	upstreams := []core.Upstream{
+		theUpstream,
+	}
+	config := newTestServerConfig(serverCertFile, serverKeyFile, clientCertFile, upstreams, clientId)
+
+	server, err := NewServer(logger, config)
+	require.NoError(t, err, err)
+
+	serverAddress := server.Listener.Addr().String()
+
+	// start the upstream server
+	go func() {
+		srvErr := server.Serve()
+		if srvErr != nil {
+			logger.Error(&slog.LogRecord{Msg: "server.Serve returned error", Error: srvErr})
+		}
+	}()
+
+	ctx := context.Background()
+
+	clientCtx, clientCancel := context.WithCancel(ctx)
+	defer clientCancel()
+
+	// Asynchronously open a client TCP connection to server, then have the client nothing.
+	// Don't attempt to do TLS handshake. See if server times out and closes the conn.
+	clientOut := make(chan error, 1)
+	go makeSilentTCPClientConn(clientCtx, serverAddress, clientOut)
+
+	timer := time.NewTimer(config.TLSHandshakeTimeout * 2)
+	select {
+	case <-timer.C:
+		require.Fail(t, "expected server TLSHandshakeTimeout to have kicked in")
+	case clientErr := <-clientOut:
+		require.ErrorIs(t, clientErr, io.EOF)
+	}
 
 	defer func() {
 		closeErr := server.Close()
