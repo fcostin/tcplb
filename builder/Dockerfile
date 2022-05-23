@@ -8,6 +8,8 @@ RUN go mod download
 
 COPY cmd cmd
 COPY lib lib
+COPY testbed testbed
+COPY tool tool
 COPY Makefile .
 
 RUN make all
