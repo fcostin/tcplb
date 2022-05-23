@@ -45,7 +45,7 @@ Start `tcplb`, forwarding to `example.com` port 80:
     -listen-address 127.0.0.1:4444 \
     -upstreams example.com:80 \
 ```
-#### terminal #2, from somewhere on the same localhost
+#### terminal #2, from somewhere on the same host
 
 Connect to `tcplb` using `telnet`:
 ```
@@ -87,7 +87,7 @@ Start `tcplb`, forwarding to `example.com` port 80:
 	-upstreams example.com:80
 ```
 
-#### terminal #2, from same working dir
+#### terminal #2, from same working dir on same host
 
 Perform an example HTTPS query through `tcplb` using `curl`:
 ```
