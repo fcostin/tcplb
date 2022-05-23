@@ -103,5 +103,8 @@ func newConfigFromFlags(argv []string) (*Config, error) {
 	if insecureAcceptTCP {
 		cfg.Authentication = &AuthnConfig{AllowAnonymous: true}
 	}
+
+	// TODO FIXME allow authz to be configured.
+
 	return cfg, err
 }

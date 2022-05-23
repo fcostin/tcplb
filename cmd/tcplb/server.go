@@ -10,7 +10,6 @@ import (
 	"io"
 	"net"
 	"os"
-	"tcplb/lib/authn"
 	"tcplb/lib/authz"
 	"tcplb/lib/core"
 	"tcplb/lib/dialer"
@@ -41,6 +40,7 @@ type Config struct {
 	ApplicationIdleTimeout  time.Duration
 	TLS                     *TLSConfig
 	Authentication          *AuthnConfig
+	Authorization           *AuthzConfig
 }
 
 type TLSConfig struct {
@@ -51,6 +51,10 @@ type TLSConfig struct {
 
 type AuthnConfig struct {
 	AllowAnonymous bool
+}
+
+type AuthzConfig struct {
+	AuthorizedClients []core.ClientID
 }
 
 func (c *Config) Validate() error {
@@ -93,14 +97,8 @@ func makeAuthorizerFromConfig(cfg *Config) (forwarder.Authorizer, error) {
 	urGroup := authz.Group{Key: "ur"}
 	urUpstreamGroup := authz.UpstreamGroup{Key: "ur"}
 
-	// FIXME unhardcode this, externalise
-	clientStrong := core.ClientID{Namespace: authn.DefaultNamespace, Key: "client-strong"}
-
 	authzCfg := authz.Config{
-		GroupsByClientID: map[core.ClientID][]authz.Group{
-			// clientStronganonymousTestClientID: {urGroup}, // FIXME unhardcode
-			clientStrong: {urGroup}, // FIXME unhardcode
-		},
+		GroupsByClientID: make(map[core.ClientID][]authz.Group),
 		UpstreamGroupsByGroup: map[authz.Group][]authz.UpstreamGroup{
 			urGroup: {urUpstreamGroup},
 		},
@@ -108,6 +106,13 @@ func makeAuthorizerFromConfig(cfg *Config) (forwarder.Authorizer, error) {
 			urUpstreamGroup: core.NewUpstreamSet(cfg.Upstreams...),
 		},
 	}
+
+	if cfg.Authorization != nil {
+		for _, client := range cfg.Authorization.AuthorizedClients {
+			authzCfg.GroupsByClientID[client] = []authz.Group{urGroup}
+		}
+	}
+
 	// TODO FIXME end placeholder demo authorization config
 	return authz.NewStaticAuthorizer(authzCfg), nil
 }
@@ -152,7 +157,7 @@ func loadServerCertificatesFromTLSConfig(cfg *TLSConfig) ([]tls.Certificate, err
 	return chains, nil
 }
 
-func loadRootCAsFromConfig(cfg *TLSConfig) (*x509.CertPool, error) {
+func loadRootCAs(rootCAPath string) (*x509.CertPool, error) {
 	// Variant of x509 CertPool AppendCertsFromPEM that fails on errors.
 	// The version in the standard library skips over certs that don't parse. (!)
 	AppendCertsFromPEM := func(pool *x509.CertPool, pemCerts []byte) error {
@@ -176,7 +181,7 @@ func loadRootCAsFromConfig(cfg *TLSConfig) (*x509.CertPool, error) {
 		return nil
 	}
 
-	f, err := os.Open(cfg.RootCAPath)
+	f, err := os.Open(rootCAPath)
 	if err != nil {
 		return nil, err
 	}
@@ -207,7 +212,7 @@ func makeListenerFromConfig(cfg *Config, logger slog.Logger) (net.Listener, erro
 		return nil, err
 	}
 	logger.Info(&slog.LogRecord{Msg: "TLS - loaded server certificate and key"})
-	rootCAs, err := loadRootCAsFromConfig(cfg.TLS)
+	rootCAs, err := loadRootCAs(cfg.TLS.RootCAPath)
 	if err != nil {
 		return nil, err
 	}
@@ -241,31 +246,31 @@ func makeAuthenticatorFromConfig(cfg *Config, logger slog.Logger, inner forwarde
 	}, nil
 }
 
-func serve(logger slog.Logger, cfg *Config) error {
+func NewServer(logger slog.Logger, cfg *Config) (*forwarder.Server, error) {
 	// Wire together the forwarder.Server
 
 	reserver, err := makeClientReserverFromConfig(cfg)
 	if err != nil {
 		logger.Error(&slog.LogRecord{Msg: "Client rate-limiter error", Error: err})
-		return err
+		return nil, err
 	}
 
 	authorizer, err := makeAuthorizerFromConfig(cfg)
 	if err != nil {
 		logger.Error(&slog.LogRecord{Msg: "Authorization configuration error", Error: err})
-		return err
+		return nil, err
 	}
 
 	dialer, err := makeDialerFromConfig(cfg, logger)
 	if err != nil {
 		logger.Error(&slog.LogRecord{Msg: "Dialer configuration error", Error: err})
-		return err
+		return nil, err
 	}
 
 	fwder, err := makeForwarderFromConfig(cfg, logger)
 	if err != nil {
 		logger.Error(&slog.LogRecord{Msg: "Forwarder configuration error", Error: err})
-		return err
+		return nil, err
 	}
 
 	// Compose stack of connection handlers. They are defined
@@ -288,7 +293,7 @@ func serve(logger slog.Logger, cfg *Config) error {
 	authnHandler, err := makeAuthenticatorFromConfig(cfg, logger, rateLimitingHandler)
 	if err != nil {
 		logger.Error(&slog.LogRecord{Msg: "Authenticator configuration error", Error: err})
-		return err
+		return nil, err
 	}
 	baseHandler := &forwarder.ConnCloserHandler{
 		Inner: authnHandler,
@@ -298,11 +303,8 @@ func serve(logger slog.Logger, cfg *Config) error {
 	if err != nil {
 		msg := fmt.Sprintf("Listen error with network: %s address: %s", cfg.ListenNetwork, cfg.ListenAddress)
 		logger.Error(&slog.LogRecord{Msg: msg, Error: err})
-		return err
+		return nil, err
 	}
-	defer func() {
-		_ = listener.Close()
-	}()
 
 	// TODO graceful shutdown upon receiving interrupt
 	// - stop accepting new connections
@@ -317,5 +319,5 @@ func serve(logger slog.Logger, cfg *Config) error {
 		Listener:                    listener,
 		AcceptErrorCooldownDuration: defaultAcceptErrorCooldownDuration,
 	}
-	return s.Serve()
+	return s, nil
 }
