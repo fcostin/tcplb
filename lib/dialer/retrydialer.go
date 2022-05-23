@@ -11,6 +11,10 @@ import (
 	"time"
 )
 
+const (
+	defaultBackoffDuration = time.Second
+)
+
 // NoCandidateUpstreams is an error returned by RetryDialer if there are no
 // upstreams given as candidates to dial.
 var NoCandidateUpstreams = errors.New("no candidate upstreams")
@@ -87,6 +91,8 @@ func (d *RetryDialer) DialBestUpstream(ctx context.Context, candidates core.Upst
 	dialCtx, cancel := context.WithTimeout(ctx, d.Timeout)
 	defer cancel()
 
+	attemptedUpstreams := core.EmptyUpstreamSet()
+
 	for {
 		upstream, err := d.Policy.ChooseBestUpstream(candidates)
 		if err != nil {
@@ -94,8 +100,22 @@ func (d *RetryDialer) DialBestUpstream(ctx context.Context, candidates core.Upst
 			// (honouring dialCtx timeout) to give policy chance to change its mind.
 			return core.Upstream{}, nil, err
 		}
-		// TODO if policy chose an upstream we tried earlier this call, we could also
-		// pause here (honouring dialCtx timeout) with an exponential backoff.
+
+		// Check if the policy chose an upstream we already tried
+		// and failed to dial. If so, wait for a backoff period,
+		// before retrying, respecting the dial context.
+		_, isRetry := attemptedUpstreams[upstream]
+		if isRetry {
+			// TODO enhance with exponential backoff schedule.
+			backoffTimer := time.NewTimer(defaultBackoffDuration)
+			select {
+			case <-backoffTimer.C:
+				backoffTimer.Stop()
+			case <-dialCtx.Done():
+				backoffTimer.Stop()
+			}
+		}
+		attemptedUpstreams[upstream] = struct{}{}
 
 		conn, err := d.InnerDialer.DialUpstream(dialCtx, upstream)
 		if err != nil {
