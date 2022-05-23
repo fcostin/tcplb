@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"tcplb/lib/authn"
 	"tcplb/lib/core"
 )
 
 const (
 	commandName     = "tcplb"
 	upstreamListSep = ","
+	clientIDListSep = ","
 )
 
 // UpstreamListValue is a flag.Value for lists of Upstream addresses.
@@ -45,6 +47,32 @@ func (v *UpstreamListValue) Set(s string) error {
 	return nil
 }
 
+// ClientIDListValue is a flag.Value for lists of ClientIDs
+type ClientIDListValue struct {
+	ClientIDs []core.ClientID
+}
+
+func (v *ClientIDListValue) String() string {
+	n := len(v.ClientIDs)
+	tokens := make([]string, n)
+	for i, c := range v.ClientIDs {
+		tokens[i] = c.Key
+	}
+	return strings.Join(tokens, clientIDListSep)
+}
+
+func (v *ClientIDListValue) Set(s string) error {
+	tokens := strings.Split(s, clientIDListSep)
+	for _, token := range tokens {
+		c := core.ClientID{
+			Namespace: authn.DefaultNamespace,
+			Key:       token,
+		}
+		v.ClientIDs = append(v.ClientIDs, c)
+	}
+	return nil
+}
+
 func newConfigFromFlags(argv []string) (*Config, error) {
 	flagSet := flag.NewFlagSet(commandName, flag.ExitOnError)
 
@@ -52,11 +80,14 @@ func newConfigFromFlags(argv []string) (*Config, error) {
 		ListenNetwork:          defaultListenNetwork,
 		ApplicationIdleTimeout: defaultApplicationIdleTimeout,
 		TLSHandshakeTimeout:    defaultTLSHandshakeTimeout,
+		Authorization:          &AuthzConfig{},
 	}
 
 	tlsConfig := &TLSConfig{}
 
 	upstreamListVar := &UpstreamListValue{}
+
+	clientIDListVar := &ClientIDListValue{}
 
 	var insecureAcceptTCP bool
 
@@ -74,6 +105,10 @@ func newConfigFromFlags(argv []string) (*Config, error) {
 		upstreamListVar,
 		"upstreams",
 		"comma-separated list of upstream as host:port")
+	flagSet.Var(
+		clientIDListVar,
+		"authzd-clients",
+		"comma-separated list of authorized client CommonNames")
 
 	flagSet.StringVar(
 		&(tlsConfig.ServerKeyFile),
@@ -99,10 +134,13 @@ func newConfigFromFlags(argv []string) (*Config, error) {
 
 	err := flagSet.Parse(argv[1:])
 	cfg.Upstreams = upstreamListVar.Upstreams
-	cfg.TLS = tlsConfig
+
+	cfg.Authorization.AuthorizedClients = clientIDListVar.ClientIDs
 
 	if insecureAcceptTCP {
 		cfg.Authentication = &AuthnConfig{AllowAnonymous: true}
+	} else {
+		cfg.TLS = tlsConfig
 	}
 
 	// TODO FIXME allow authz to be configured.

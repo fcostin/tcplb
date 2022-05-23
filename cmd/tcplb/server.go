@@ -10,6 +10,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"tcplb/lib/authn"
 	"tcplb/lib/authz"
 	"tcplb/lib/core"
 	"tcplb/lib/dialer"
@@ -31,7 +32,7 @@ const (
 )
 
 // TODO FIXME insecure
-var anonymousTestClientID = core.ClientID{Namespace: "test", Key: "anonymous"}
+var anonymousTestClientID = core.ClientID{Namespace: authn.DefaultNamespace, Key: "anonymous"}
 
 type Config struct {
 	ListenNetwork           string
@@ -64,23 +65,22 @@ func (c *Config) Validate() error {
 		return errors.New("server must be configured with 1 or more upstreams")
 	}
 
-	someTLSConfig := len(c.TLS.ServerKeyFile) > 0 || len(c.TLS.ServerCertFile) > 0 || len(c.TLS.RootCAPath) > 0
-	allTLSConfig := len(c.TLS.ServerKeyFile) > 0 && len(c.TLS.ServerCertFile) > 0 && len(c.TLS.RootCAPath) > 0
+	if c.TLS != nil {
+		someTLSConfig := len(c.TLS.ServerKeyFile) > 0 || len(c.TLS.ServerCertFile) > 0 || len(c.TLS.RootCAPath) > 0
+		allTLSConfig := len(c.TLS.ServerKeyFile) > 0 && len(c.TLS.ServerCertFile) > 0 && len(c.TLS.RootCAPath) > 0
 
-	if someTLSConfig && !allTLSConfig {
-		return errors.New("TLS misconfiguration: key-file, cert-file and ca-root-file must all be given")
-	}
-	if allTLSConfig {
+		if someTLSConfig && !allTLSConfig {
+			return errors.New("TLS misconfiguration: key-file, cert-file and ca-root-file must all be given")
+		}
 		if c.Authentication != nil && c.Authentication.AllowAnonymous {
 			return errors.New("refusing to allow anonymous authentication when TLS is configured")
 		}
-	}
-	if !someTLSConfig {
-		if c.Authentication == nil || c.Authentication.AllowAnonymous {
-			return errors.New("TLS configuration not found")
+		if !someTLSConfig {
+			if c.Authentication == nil || c.Authentication.AllowAnonymous {
+				return errors.New("TLS configuration not found")
+			}
 		}
 	}
-
 	return nil
 }
 
