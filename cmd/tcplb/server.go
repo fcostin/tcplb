@@ -22,7 +22,7 @@ import (
 
 const (
 	defaultAcceptErrorCooldownDuration = time.Second
-	defaultApplicationIdleTimeout      = 15 * time.Second
+	defaultForwardingTimeout           = 5 * time.Minute
 	defaultDialerTimeout               = 15 * time.Second
 	defaultTLSHandshakeTimeout         = 15 * time.Second
 	defaultUpstreamNetwork             = "tcp"
@@ -39,7 +39,6 @@ type Config struct {
 	ListenAddress           string
 	Upstreams               []core.Upstream
 	MaxConnectionsPerClient int64
-	ApplicationIdleTimeout  time.Duration
 	TLSHandshakeTimeout     time.Duration
 	TLS                     *TLSConfig
 	Authentication          *AuthnConfig
@@ -131,8 +130,8 @@ func makeDialerFromConfig(cfg *Config, logger slog.Logger) (forwarder.BestUpstre
 
 func makeForwarderFromConfig(cfg *Config, logger slog.Logger) (forwarder.Forwarder, error) {
 	return &forwarder.ForwardingSupervisor{
-		IdleTimeout: cfg.ApplicationIdleTimeout,
-		Logger:      logger,
+		Logger:            logger,
+		ForwardingTimeout: defaultForwardingTimeout,
 	}, nil
 }
 

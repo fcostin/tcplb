@@ -77,10 +77,9 @@ func newConfigFromFlags(argv []string) (*Config, error) {
 	flagSet := flag.NewFlagSet(commandName, flag.ExitOnError)
 
 	cfg := &Config{
-		ListenNetwork:          defaultListenNetwork,
-		ApplicationIdleTimeout: defaultApplicationIdleTimeout,
-		TLSHandshakeTimeout:    defaultTLSHandshakeTimeout,
-		Authorization:          &AuthzConfig{},
+		ListenNetwork:       defaultListenNetwork,
+		TLSHandshakeTimeout: defaultTLSHandshakeTimeout,
+		Authorization:       &AuthzConfig{},
 	}
 
 	tlsConfig := &TLSConfig{}

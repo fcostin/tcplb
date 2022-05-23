@@ -80,7 +80,6 @@ func newTestServerConfig(certFile, keyFile, rootCAPath string, upstreams []core.
 	return &Config{
 		ListenNetwork:           defaultListenNetwork,
 		ListenAddress:           "0.0.0.0:0", // bind to an arbitrary free port
-		ApplicationIdleTimeout:  defaultApplicationIdleTimeout,
 		TLSHandshakeTimeout:     2 * time.Second,
 		MaxConnectionsPerClient: 25,
 		Upstreams:               upstreams,
