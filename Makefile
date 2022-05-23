@@ -1,6 +1,8 @@
 CERTKEY_RECIPES := $(shell find testbed -name 'certkey.recipe')
 KEYS := $(addsuffix key.pem,$(dir $(CERTKEY_RECIPES)))
 
+export TCPLB_TESTBED_ROOT=$(shell pwd)/testbed
+
 all:	test build
 .PHONY: all
 
@@ -8,9 +10,16 @@ build:
 	CGO_ENABLED=0 go build -o dist/tcplb ./cmd/tcplb
 .PHONY: all
 
-test:
-	go test -vet=all -race ./...
+test:	libtest servertest
 .PHONY: test
+
+servertest:	allkeys
+	go test -vet=all -race -v ./cmd/...
+.PHONY: servertest
+
+libtest:
+	go test -vet=all -race -v ./lib/...
+.PHONY: libtest
 
 containerised_build:
 	./builder/builder.sh
